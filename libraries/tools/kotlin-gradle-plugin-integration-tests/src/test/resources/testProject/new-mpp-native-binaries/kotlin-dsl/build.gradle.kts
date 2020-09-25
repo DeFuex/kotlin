@@ -5,18 +5,13 @@ plugins {
 repositories {
     mavenLocal()
     jcenter()
-    maven { setUrl("http://dl.bintray.com/kotlin/kotlinx.html/") }
+    maven { setUrl("https://dl.bintray.com/kotlin/kotlinx.html/") }
 }
 
 kotlin {
     sourceSets["commonMain"].apply {
         dependencies {
             api("org.jetbrains.kotlin:kotlin-stdlib-common")
-        }
-    }
-
-    sourceSets.create("iosMain").apply {
-        dependencies {
             api(project(":exported"))
         }
     }
@@ -32,7 +27,8 @@ kotlin {
     val windows = mingwX64("mingw64")
 
     configure(listOf(macos, linux, windows)) {
-
+        compilations.all { kotlinOptions.verbose = true }
+        compilations["test"].kotlinOptions.freeCompilerArgs += "-nowarn"
         binaries {
 
             executable()                       // Executable with default name.
@@ -49,10 +45,18 @@ kotlin {
 
             executable("test2") {
                 compilation = compilations["test"]
+                freeCompilerArgs += "-tr"
+                linkTask.kotlinOptions {
+                    freeCompilerArgs += "-Xtime"
+                }
             }
 
-            sharedLib(listOf(RELEASE))
-            staticLib(listOf(RELEASE))
+            sharedLib(listOf(RELEASE)) {
+                export(project(":exported"))
+            }
+            staticLib(listOf(RELEASE)) {
+                export(project(":exported"))
+            }
         }
         // Check that we can access binaries/tasks:
         // Just by name:
@@ -70,7 +74,14 @@ kotlin {
                 embedBitcode("disable")
                 linkerOpts = mutableListOf("-L.")
                 freeCompilerArgs = mutableListOf("-Xtime")
+                isStatic = true
             }
+        }
+    }
+
+    iosX64("iosSim") {
+        binaries {
+            framework()
         }
     }
 }

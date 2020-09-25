@@ -4,8 +4,6 @@ plugins {
     id("jps-compatible")
 }
 
-jvmTarget = "1.6"
-
 dependencies {
     compile(project(":core:descriptors"))
     compile(project(":core:descriptors.jvm"))
@@ -14,19 +12,24 @@ dependencies {
     compile(project(":compiler:frontend"))
     compile(project(":compiler:frontend.java"))
     compile(project(":compiler:cli"))
+    compile(project(":compiler:cli-js"))
     compile(project(":kotlin-build-common"))
-    compile(project(":compiler:daemon-common"))
+    compile(project(":daemon-common"))
     compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
-    compileOnly(intellijDep()) { includeJars("annotations") }
 
     testCompile(commonDep("junit:junit"))
     testCompile(project(":kotlin-test:kotlin-test-junit"))
     testCompile(kotlinStdlib())
-    testCompileOnly("org.jetbrains:annotations:13.0")
     testCompile(projectTests(":kotlin-build-common"))
     testCompile(projectTests(":compiler:tests-common"))
-    testCompileOnly(intellijCoreDep()) { includeJars("intellij-core") }
-    testCompile(intellijDep()) { includeJars("annotations", "log4j", "jdom") }
+    testCompile(intellijCoreDep()) { includeJars("intellij-core") }
+    testCompile(intellijDep()) { includeJars("log4j", "jdom") }
+
+    if (Platform.P192.orHigher()) {
+        testRuntime(intellijDep()) { includeJars("lz4-java", rootProject = rootProject) }
+    } else {
+        testRuntime(intellijDep()) { includeJars("lz4-1.3.0") }
+    }
 }
 
 sourceSets {
@@ -34,8 +37,17 @@ sourceSets {
     "test" { projectDefault() }
 }
 
-projectTest {
+projectTest(parallel = true) {
     workingDir = rootDir
+    dependsOn(":kotlin-stdlib-js-ir:packFullRuntimeKLib")
+}
+
+projectTest("testJvmICWithJdk11", parallel = true) {
+    workingDir = rootDir
+    filter {
+        includeTestsMatching("org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunnerTestGenerated*")
+    }
+    executable = "${rootProject.extra["JDK_11"]}/bin/java"
 }
 
 testsJar()

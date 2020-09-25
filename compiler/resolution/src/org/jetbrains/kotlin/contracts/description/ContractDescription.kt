@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.contracts.description
 import org.jetbrains.kotlin.contracts.interpretation.ContractInterpretationDispatcher
 import org.jetbrains.kotlin.contracts.model.Functor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.storage.StorageManager
 
 /**
@@ -38,12 +39,12 @@ open class ContractDescription(
     val ownerFunction: FunctionDescriptor,
     storageManager: StorageManager
 ) {
-    private val functorLazyValue = storageManager.createNullableLazyValue {
+    private val computeFunctor = storageManager.createNullableLazyValue {
         ContractInterpretationDispatcher().convertContractDescriptorToFunctor(this)
     }
 
-    val functor: Functor?
-        get() = functorLazyValue()
+    @Suppress("UNUSED_PARAMETER")
+    fun getFunctor(usageModule: ModuleDescriptor): Functor? = computeFunctor.invoke()
 }
 
 interface ContractDescriptionElement {

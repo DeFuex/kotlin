@@ -1,6 +1,6 @@
 /*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2000-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.quickfix
@@ -13,11 +13,9 @@ import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.cli.common.arguments.CommonCompilerArguments
 import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.diagnostics.Diagnostic
+import org.jetbrains.kotlin.idea.KotlinJvmBundle
 import org.jetbrains.kotlin.idea.compiler.configuration.KotlinCommonCompilerArgumentsHolder
-import org.jetbrains.kotlin.idea.configuration.BuildSystemType
 import org.jetbrains.kotlin.idea.configuration.findApplicableConfigurator
-import org.jetbrains.kotlin.idea.configuration.getBuildSystemType
-import org.jetbrains.kotlin.idea.facet.KotlinFacet
 import org.jetbrains.kotlin.idea.roots.invalidateProjectRoots
 import org.jetbrains.kotlin.psi.KtFile
 
@@ -27,7 +25,7 @@ sealed class ChangeCoroutineSupportFix(
 ) : AbstractChangeFeatureSupportLevelFix(element, LanguageFeature.Coroutines, coroutineSupport, shortFeatureName) {
 
     class InModule(element: PsiElement, coroutineSupport: LanguageFeature.State) : ChangeCoroutineSupportFix(element, coroutineSupport) {
-        override fun getText() = "${super.getText()} in the current module"
+        override fun getText() = KotlinJvmBundle.message("fix.0.in.current.module", super.getText())
 
         override fun invoke(project: Project, editor: Editor?, file: KtFile) {
             val module = ModuleUtilCore.findModuleForPsiElement(file) ?: return
@@ -37,7 +35,7 @@ sealed class ChangeCoroutineSupportFix(
     }
 
     class InProject(element: PsiElement, coroutineSupport: LanguageFeature.State) : ChangeCoroutineSupportFix(element, coroutineSupport) {
-        override fun getText() = "${super.getText()} in the project"
+        override fun getText() = KotlinJvmBundle.message("fix.0.in.the.project", super.getText())
 
         override fun invoke(project: Project, editor: Editor?, file: KtFile) {
             if (featureSupportEnabled) {
@@ -57,9 +55,9 @@ sealed class ChangeCoroutineSupportFix(
     }
 
     companion object : FeatureSupportIntentionActionsFactory() {
-        private const val shortFeatureName = "coroutine"
+        private val shortFeatureName get() = KotlinJvmBundle.message("short.feature.name.coroutine")
 
-        fun getFixText(state: LanguageFeature.State) = AbstractChangeFeatureSupportLevelFix.getFixText(state, shortFeatureName)
+        fun getFixText(state: LanguageFeature.State) = getFixText(state, shortFeatureName)
 
         override fun doCreateActions(diagnostic: Diagnostic): List<IntentionAction> {
             val module = ModuleUtilCore.findModuleForPsiElement(diagnostic.psiElement) ?: return emptyList()

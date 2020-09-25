@@ -14,7 +14,7 @@ fun <T> readFromMyList(<!UNUSED_PARAMETER!>l<!>: MyList<out T>, <!UNUSED_PARAMET
 fun test1(int: Int, any: Any) {
     val a0 : MyList<Any> = getMyList(int)
 
-    val a1 : MyList<Int> = <!NI;TYPE_MISMATCH, OI;TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>getMyList(any)<!>
+    val a1 : MyList<Int> = <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, OI;TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>getMyList(any)<!>
 
     val a2 : MyList<out Any> = getMyList(int)
 
@@ -45,7 +45,7 @@ fun test1(int: Int, any: Any) {
     readFromMyList(getMyList(any), int)
     readFromMyList<Int>(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, OI;TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>getMyList(any)<!>, int)
 
-    readFromMyList<Int>(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, OI;TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>getMyListToReadFrom(any)<!>, int)
+    readFromMyList<Int>(<!NI;TYPE_MISMATCH, OI;TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>getMyListToReadFrom(any)<!>, int)
     readFromMyList(getMyListToReadFrom(any), int)
 
     readFromMyList(getMyListToReadFrom(int), any)
@@ -61,7 +61,7 @@ fun test1(int: Int, any: Any) {
 
     readFromMyList(getMyListToWriteTo(any), any)
 
-    <!OI;TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>writeToMyList<!>(getMyListToReadFrom(any), any)
+    <!OI;TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>writeToMyList<!>(getMyListToReadFrom(any), <!NI;TYPE_MISMATCH!>any<!>)
 
     use(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
 }

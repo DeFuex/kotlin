@@ -16,57 +16,60 @@
 
 package org.jetbrains.kotlin.ir.util
 
+import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
-import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
-import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
-import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.ir.linkage.IrDeserializer
+import org.jetbrains.kotlin.ir.linkage.IrProvider
+import org.jetbrains.kotlin.ir.symbols.IrSymbol
+import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 
 class ExternalDependenciesGenerator(
-    moduleDescriptor: ModuleDescriptor,
     val symbolTable: SymbolTable,
-    val irBuiltIns: IrBuiltIns,
-    val deserializer: IrDeserializer? = null
+    private val irProviders: List<IrProvider>,
+    private val languageVersionSettings: LanguageVersionSettings
 ) {
-    private val stubGenerator = DeclarationStubGenerator(
-        moduleDescriptor, symbolTable, IrDeclarationOrigin.IR_EXTERNAL_DECLARATION_STUB, irBuiltIns.languageVersionSettings, deserializer
-    )
-
-    fun generateUnboundSymbolsAsDependencies(irModule: IrModuleFragment, bindingContext: BindingContext? = null) {
-        DependencyGenerationTask(irModule, bindingContext).run()
-    }
-
-    private inner class DependencyGenerationTask(val irModule: IrModuleFragment, val bindingContext: BindingContext?) {
-
-        fun run() {
-            stubGenerator.unboundSymbolGeneration = true
-            ArrayList(symbolTable.unboundClasses).forEach {
-                stubGenerator.generateClassStub(it.descriptor)
-            }
-            ArrayList(symbolTable.unboundConstructors).forEach {
-                stubGenerator.generateConstructorStub(it.descriptor)
-            }
-            ArrayList(symbolTable.unboundEnumEntries).forEach {
-                stubGenerator.generateEnumEntryStub(it.descriptor)
-            }
-            ArrayList(symbolTable.unboundFields).forEach {
-                stubGenerator.generateFieldStub(it.descriptor, bindingContext)
-            }
-            ArrayList(symbolTable.unboundSimpleFunctions).forEach {
-                stubGenerator.generateFunctionStub(it.descriptor)
-            }
-            ArrayList(symbolTable.unboundTypeParameters).forEach {
-                stubGenerator.generateOrGetTypeParameterStub(it.descriptor)
-            }
-
-            deserializer?.declareForwardDeclarations()
-
-            assert(symbolTable.unboundClasses.isEmpty())
-            assert(symbolTable.unboundConstructors.isEmpty())
-            assert(symbolTable.unboundEnumEntries.isEmpty())
-            assert(symbolTable.unboundFields.isEmpty())
-            assert(symbolTable.unboundSimpleFunctions.isEmpty())
-            assert(symbolTable.unboundTypeParameters.isEmpty())
+    fun generateUnboundSymbolsAsDependencies() {
+        // There should be at most one DeclarationStubGenerator (none in closed world?)
+        irProviders.singleOrNull { it is DeclarationStubGenerator }?.let {
+            (it as DeclarationStubGenerator).unboundSymbolGeneration = true
         }
+        /*
+            Deserializing a reference may lead to new unbound references, so we loop until none are left.
+         */
+        var unbound = setOf<IrSymbol>()
+        lateinit var prevUnbound: Set<IrSymbol>
+        do {
+            prevUnbound = unbound
+            unbound = symbolTable.allUnbound
+
+            for (symbol in unbound) {
+                // Symbol could get bound as a side effect of deserializing other symbols.
+                if (!symbol.isBound) {
+                    irProviders.getDeclaration(symbol)
+                }
+            }
+        // We wait for the unbound to stabilize on fake overrides.
+        } while (unbound != prevUnbound)
     }
+}
+
+fun List<IrProvider>.getDeclaration(symbol: IrSymbol): IrDeclaration? =
+    firstNotNullResult { provider ->
+        provider.getDeclaration(symbol)
+    }
+
+// In most cases, IrProviders list consist of an optional deserializer and a DeclarationStubGenerator.
+fun generateTypicalIrProviderList(
+    moduleDescriptor: ModuleDescriptor,
+    irBuiltins: IrBuiltIns,
+    symbolTable: SymbolTable,
+    deserializer: IrDeserializer? = null,
+    extensions: StubGeneratorExtensions = StubGeneratorExtensions.EMPTY
+): List<IrProvider> {
+    val stubGenerator = DeclarationStubGenerator(
+        moduleDescriptor, symbolTable, irBuiltins.languageVersionSettings, extensions
+    )
+    return listOfNotNull(deserializer, stubGenerator)
 }

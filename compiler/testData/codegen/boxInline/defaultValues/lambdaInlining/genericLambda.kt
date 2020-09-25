@@ -1,4 +1,6 @@
-// IGNORE_BACKEND: JVM_IR
+// Enable for dexing once we have a D8 version with a fix for
+// https://issuetracker.google.com/148661132
+// IGNORE_DEXING
 // NO_CHECK_LAMBDA_INLINING
 // FILE: 1.kt
 package test

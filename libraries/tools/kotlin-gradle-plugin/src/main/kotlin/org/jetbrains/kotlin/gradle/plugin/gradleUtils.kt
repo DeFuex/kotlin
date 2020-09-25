@@ -27,16 +27,16 @@ import java.io.File
 
 internal fun AbstractCompile.appendClasspathDynamically(file: File) {
     var added = false
-
+    val objects = project.objects
     doFirst {
         if (file !in classpath) {
-            classpath += project.files(file)
+            classpath += objects.fileCollection().from(file)
             added = true
         }
     }
     doLast {
         if (added) {
-            classpath -= project.files(file)
+            classpath -= objects.fileCollection().from(file)
         }
     }
 }
@@ -50,7 +50,7 @@ internal inline fun <reified T : Any> Any.addConvention(name: String, plugin: T)
 }
 
 internal inline fun <reified T : Any> Any.addExtension(name: String, extension: T) =
-    (this as ExtensionAware).extensions.add(name, extension)
+    (this as ExtensionAware).extensions.add(T::class.java, name, extension)
 
 internal fun Any.getConvention(name: String): Any? =
     (this as HasConvention).convention.plugins[name]

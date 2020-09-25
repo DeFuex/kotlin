@@ -1,12 +1,15 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.serialization.builtins
 
 import org.jetbrains.kotlin.builtins.BuiltInsPackageFragment
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns.*
+import org.jetbrains.kotlin.builtins.StandardNames
+import org.jetbrains.kotlin.builtins.StandardNames.BUILT_INS_PACKAGE_FQ_NAME
+import org.jetbrains.kotlin.builtins.StandardNames.COLLECTIONS_PACKAGE_FQ_NAME
+import org.jetbrains.kotlin.builtins.StandardNames.RANGES_PACKAGE_FQ_NAME
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
 import org.jetbrains.kotlin.descriptors.impl.ModuleDescriptorImpl
 import org.jetbrains.kotlin.renderer.AnnotationArgumentsRenderingPolicy
@@ -24,7 +27,7 @@ abstract class AbstractBuiltInsWithJDKMembersTest : KotlinTestWithEnvironment() 
     private val configuration = createComparatorConfiguration()
 
     override fun createEnvironment(): KotlinCoreEnvironment =
-            createEnvironmentWithJdk(ConfigurationKind.JDK_ONLY, testJdkKind)
+        createEnvironmentWithJdk(ConfigurationKind.JDK_ONLY, testJdkKind)
 
     protected open val testJdkKind: TestJdkKind
         get() = TestJdkKind.FULL_JDK
@@ -33,11 +36,12 @@ abstract class AbstractBuiltInsWithJDKMembersTest : KotlinTestWithEnvironment() 
         val module = JvmResolveUtil.analyze(environment).moduleDescriptor as ModuleDescriptorImpl
 
         for (packageFqName in listOf(BUILT_INS_PACKAGE_FQ_NAME, COLLECTIONS_PACKAGE_FQ_NAME, RANGES_PACKAGE_FQ_NAME)) {
-            val loaded =
-                    module.packageFragmentProvider.getPackageFragments(packageFqName).filterIsInstance<BuiltInsPackageFragment>().single()
+            val loaded = module.packageFragmentProvider.getPackageFragments(packageFqName)
+                .filterIsInstance<BuiltInsPackageFragment>()
+                .single { !it.isFallback }
             RecursiveDescriptorComparator.validateAndCompareDescriptorWithFile(
-                    loaded, configuration,
-                    File("compiler/testData/builtin-classes/$builtinVersionName/" + packageFqName.asString().replace('.', '-') + ".txt")
+                loaded, configuration,
+                File("compiler/testData/builtin-classes/$builtinVersionName/" + packageFqName.asString().replace('.', '-') + ".txt")
             )
         }
     }
@@ -52,7 +56,7 @@ abstract class AbstractBuiltInsWithJDKMembersTest : KotlinTestWithEnvironment() 
                     verbose = true
                     annotationArgumentsRenderingPolicy = AnnotationArgumentsRenderingPolicy.UNLESS_EMPTY
                     modifiers = DescriptorRendererModifier.ALL
-                    excludedTypeAnnotationClasses = setOf(FQ_NAMES.unsafeVariance)
+                    excludedTypeAnnotationClasses = setOf(StandardNames.FqNames.unsafeVariance)
                 }
             )
         }

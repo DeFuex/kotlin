@@ -10,10 +10,10 @@ dependencies {
     compile(project(":kotlin-annotations-jvm"))
     compile(project(":core:descriptors"))
     compile(project(":core:deserialization"))
-    compile(project(":core:metadata.jvm"))
+    api(project(":core:compiler.common.jvm"))
+    api(project(":core:deserialization.common.jvm"))
     compile(project(":core:util.runtime"))
     compile(commonDep("javax.inject"))
-    compileOnly("org.jetbrains:annotations:13.0")
 }
 
 sourceSets {

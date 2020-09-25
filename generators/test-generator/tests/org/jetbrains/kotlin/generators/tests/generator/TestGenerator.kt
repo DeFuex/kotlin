@@ -1,6 +1,6 @@
 /*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2000-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.generators.tests.generator
@@ -8,10 +8,11 @@ package org.jetbrains.kotlin.generators.tests.generator
 import org.jetbrains.kotlin.generators.util.GeneratorsFileUtil
 import org.jetbrains.kotlin.test.JUnit3RunnerWithInners
 import org.jetbrains.kotlin.test.KotlinTestUtils
-import org.jetbrains.kotlin.test.TargetBackend
 import org.jetbrains.kotlin.test.TestMetadata
 import org.jetbrains.kotlin.utils.Printer
+import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.runners.BlockJUnit4ClassRunner
 import java.io.File
 import java.io.IOException
 import java.util.*
@@ -20,15 +21,16 @@ class TestGenerator(
     baseDir: String,
     suiteTestClassFqName: String,
     baseTestClassFqName: String,
-    testClassModels: Collection<TestClassModel>
+    testClassModels: Collection<TestClassModel>,
+    useJunit4: Boolean
 ) {
-
     private val baseTestClassPackage: String
     private val suiteClassPackage: String
     private val suiteClassName: String
     private val baseTestClassName: String
     private val testClassModels: Collection<TestClassModel>
-    private val testSourceFilePath: String
+    private val useJunit4: Boolean
+    internal val testSourceFilePath: String
 
     init {
         this.baseTestClassPackage = baseTestClassFqName.substringBeforeLast('.', "")
@@ -36,6 +38,7 @@ class TestGenerator(
         this.suiteClassPackage = suiteTestClassFqName.substringBeforeLast('.', baseTestClassPackage)
         this.suiteClassName = suiteTestClassFqName.substringAfterLast('.', suiteTestClassFqName)
         this.testClassModels = ArrayList(testClassModels)
+        this.useJunit4 = useJunit4
 
         this.testSourceFilePath = baseDir + "/" + this.suiteClassPackage.replace(".", "/") + "/" + this.suiteClassName + ".java"
 
@@ -44,30 +47,56 @@ class TestGenerator(
         }
     }
 
+    /**
+     * @return true if a new file is generated
+     */
     @Throws(IOException::class)
-    fun generateAndSave() {
+    fun generateAndSave(dryRun: Boolean): Boolean {
+        val generatedCode = generate()
+
+        val testSourceFile = File(testSourceFilePath)
+        val changed =
+            GeneratorsFileUtil.isFileContentChangedIgnoringLineSeparators(testSourceFile, generatedCode)
+        if (!dryRun) {
+            GeneratorsFileUtil.writeFileIfContentChanged(testSourceFile, generatedCode, false)
+        }
+        return changed
+    }
+
+    private fun generate(): String {
         val out = StringBuilder()
         val p = Printer(out)
 
         val year = GregorianCalendar()[Calendar.YEAR]
         p.println(
             """/*
-            | * Copyright 2010-$year JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
-            | * that can be found in the license/LICENSE.txt file.
-            | */
-            |""".trimMargin()
+                | * Copyright 2010-$year JetBrains s.r.o. and Kotlin Programming Language contributors.
+                | * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+                | */
+                |""".trimMargin()
         )
         p.println("package ", suiteClassPackage, ";")
         p.println()
         p.println("import com.intellij.testFramework.TestDataPath;")
-        p.println("import ", RUNNER.canonicalName, ";")
+        if (!useJunit4) {
+            p.println("import ", RUNNER.canonicalName, ";")
+        }
         p.println("import " + KotlinTestUtils::class.java.canonicalName + ";")
-        p.println("import " + TargetBackend::class.java.canonicalName + ";")
+
+        for (clazz in testClassModels.flatMapTo(mutableSetOf()) { classModel -> classModel.imports }) {
+            p.println("import ${clazz.name};")
+        }
+
         if (suiteClassPackage != baseTestClassPackage) {
             p.println("import $baseTestClassPackage.$baseTestClassName;")
         }
+
         p.println("import " + TestMetadata::class.java.canonicalName + ";")
         p.println("import " + RunWith::class.java.canonicalName + ";")
+        if (useJunit4) {
+            p.println("import " + BlockJUnit4ClassRunner::class.java.canonicalName + ";")
+            p.println("import " + Test::class.java.canonicalName + ";")
+        }
         p.println()
         p.println("import java.io.File;")
         p.println("import java.util.regex.Pattern;")
@@ -83,7 +112,7 @@ class TestGenerator(
                     get() = suiteClassName
             }
         } else {
-            model = object : TestClassModel {
+            model = object : TestClassModel() {
                 override val innerTestClasses: Collection<TestClassModel>
                     get() = testClassModels
 
@@ -101,13 +130,17 @@ class TestGenerator(
 
                 override val dataPathRoot: String?
                     get() = null
+
+                override val annotations: Collection<AnnotationModel>
+                    get() = emptyList()
+
+                override val imports: Set<Class<*>>
+                    get() = super.imports
             }
         }
 
         generateTestClass(p, model, false)
-
-        val testSourceFile = File(testSourceFilePath)
-        GeneratorsFileUtil.writeFileIfContentChanged(testSourceFile, out.toString(), false)
+        return out.toString()
     }
 
     private fun generateTestClass(p: Printer, testClassModel: TestClassModel, isStatic: Boolean) {
@@ -115,7 +148,9 @@ class TestGenerator(
 
         generateMetadata(p, testClassModel)
         generateTestDataPath(p, testClassModel)
-        p.println("@RunWith(", RUNNER.simpleName, ".class)")
+        generateParameterAnnotations(p, testClassModel)
+
+        p.println("@RunWith(", if (useJunit4) JUNIT4_RUNNER.simpleName else RUNNER.simpleName, ".class)")
 
         p.println("public " + staticModifier + "class ", testClassModel.name, " extends ", baseTestClassName, " {")
         p.pushIndent()
@@ -134,7 +169,7 @@ class TestGenerator(
                 p.println()
             }
 
-            generateTestMethod(p, methodModel)
+            generateTestMethod(p, methodModel, useJunit4)
         }
 
         for (innerTestClass in innerTestClasses) {
@@ -156,8 +191,12 @@ class TestGenerator(
     companion object {
         private val GENERATED_FILES = HashSet<String>()
         private val RUNNER = JUnit3RunnerWithInners::class.java
+        private val JUNIT4_RUNNER = BlockJUnit4ClassRunner::class.java
 
-        private fun generateTestMethod(p: Printer, methodModel: MethodModel) {
+        private fun generateTestMethod(p: Printer, methodModel: MethodModel, useJunit4: Boolean) {
+            if (useJunit4 && (methodModel !is RunTestMethodModel)) {
+                p.println("@Test")
+            }
             generateMetadata(p, methodModel)
 
             methodModel.generateSignature(p)
@@ -183,6 +222,13 @@ class TestGenerator(
             val dataPathRoot = testClassModel.dataPathRoot
             if (dataPathRoot != null) {
                 p.println("@TestDataPath(\"", dataPathRoot, "\")")
+            }
+        }
+
+        private fun generateParameterAnnotations(p: Printer, testClassModel: TestClassModel) {
+            for (annotationModel in testClassModel.annotations) {
+                annotationModel.generate(p);
+                p.println()
             }
         }
 

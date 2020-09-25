@@ -1,4 +1,3 @@
-// IGNORE_BACKEND: JVM_IR
 // COMMON_COROUTINES_TEST
 // WITH_COROUTINES
 // TREAT_AS_ONE_FILE
@@ -39,5 +38,5 @@ fun box(): String {
     return "OK"
 }
 
-// 1 PUTFIELD .*\.B\$0 : B
 // 1 PUTFIELD .*\.I\$0 : I
+// 1 PUTFIELD .*\.I\$1 : I

@@ -1,15 +1,15 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.android.tests
 
-import com.google.common.collect.Lists
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.io.FileUtilRt
-import com.intellij.openapi.util.text.StringUtil
 import org.jetbrains.kotlin.cli.common.output.writeAllTo
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
@@ -19,43 +19,101 @@ import org.jetbrains.kotlin.codegen.GenerationUtils
 import org.jetbrains.kotlin.codegen.forTestCompile.ForTestCompileRuntime
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.idea.KotlinFileType
-import org.jetbrains.kotlin.name.NameUtils
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.test.*
-import org.jetbrains.kotlin.utils.Printer
 import org.junit.Assert
-import org.junit.Ignore
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
-import java.util.*
+import kotlin.test.assertTrue
 
 data class ConfigurationKey(val kind: ConfigurationKind, val jdkKind: TestJdkKind, val configuration: String)
 
-@Ignore
-class CodegenTestsOnAndroidGenerator private constructor(private val pathManager: PathManager) : CodegenTestCase() {
-    private var writtenFilesCount = 0
-
+class CodegenTestsOnAndroidGenerator private constructor(private val pathManager: PathManager) {
     private var currentModuleIndex = 1
 
-    private val generatedTestNames = Lists.newArrayList<String>()
+    private val pathFilter: String? = System.getProperties().getProperty("kotlin.test.android.path.filter")
 
-    private fun generateOutputFiles() {
-        prepareAndroidModule()
-        generateAndSave()
+    private val pendingUnitTestGenerators = hashMapOf<String, UnitTestFileWriter>()
+
+    //keep it globally to avoid test grouping on TC
+    private val generatedTestNames = hashSetOf<String>()
+
+    private val COMMON = FlavorConfig("common", 3);
+    private val REFLECT = FlavorConfig("reflect", 1);
+    private val JVM8 = FlavorConfig("jvm8", 1);
+    private val JVM8REFLECT = FlavorConfig("reflectjvm8", 1);
+
+    class FlavorConfig(private val prefix: String, val limit: Int) {
+
+        private var writtenFilesCount = 0
+
+        fun printStatistics() {
+            println("FlavorTestCompiler: $prefix, generated file count: $writtenFilesCount")
+        }
+
+        fun getFlavorForNewFiles(newFilesCount: Int): String {
+            writtenFilesCount += newFilesCount
+            //2500 files per folder that would be used by flavor to avoid multidex usage,
+            // each folder would be jared by build.gradle script
+            val index = writtenFilesCount / 2500
+
+            return getFlavorName(index, prefix).also {
+                assertTrue("Please Add  new flavor in build.gradle for $it") { index < limit }
+            }
+        }
+
+        private fun getFlavorName(index: Int, prefix: String): String {
+            return prefix + index
+        }
+
     }
 
-    private fun prepareAndroidModule() {
+    private fun prepareAndroidModuleAndGenerateTests(skipSdkDirWriting: Boolean) {
+        prepareAndroidModule(skipSdkDirWriting)
+        generateTestsAndFlavourSuites()
+    }
+
+    private fun prepareAndroidModule(skipSdkDirWriting: Boolean) {
+        FileUtil.copyDir(File(pathManager.androidModuleRoot), File(pathManager.tmpFolder))
+        if (!skipSdkDirWriting) {
+            writeAndroidSkdToLocalProperties(pathManager)
+        }
+
         println("Copying kotlin-stdlib.jar and kotlin-reflect.jar in android module...")
         copyKotlinRuntimeJars()
+        copyGradleWrapperAndPatch()
+    }
 
-        println("Check 'libs' folder in tested android module...")
-        val libsFolderInTestedModule = File(pathManager.libsFolderInAndroidTestedModuleTmpFolder)
-        if (!libsFolderInTestedModule.exists()) {
-            libsFolderInTestedModule.mkdirs()
+    private fun copyGradleWrapperAndPatch() {
+        val projectRoot = File(pathManager.tmpFolder)
+        val target = File(projectRoot, "gradle/wrapper")
+        File("./gradle/wrapper/").copyRecursively(target)
+        val gradlew = File(projectRoot, "gradlew")
+        File("./gradlew").copyTo(gradlew).also {
+            if (!SystemInfo.isWindows) {
+                it.setExecutable(true)
+            }
+        }
+        File("./gradlew.bat").copyTo(File(projectRoot, "gradlew.bat"));
+        val file = File(target, "gradle-wrapper.properties")
+        file.readLines().map {
+            when {
+                it.startsWith("distributionUrl") -> "distributionUrl=https\\://services.gradle.org/distributions/gradle-$GRADLE_VERSION-bin.zip"
+                it.startsWith("distributionSha256Sum") -> "distributionSha256Sum=$GRADLE_SHA_256"
+                else -> it
+            }
+        }.let { lines ->
+            FileWriter(file).use { fw ->
+                lines.forEach { line ->
+                    fw.write("$line\n")
+                }
+            }
         }
     }
+
 
     private fun copyKotlinRuntimeJars() {
         FileUtil.copy(
@@ -73,50 +131,38 @@ class CodegenTestsOnAndroidGenerator private constructor(private val pathManager
         )
     }
 
-    private fun generateAndSave() {
+    private fun generateTestsAndFlavourSuites() {
         println("Generating test files...")
-        val testSourceFilePath =
-            pathManager.srcFolderInAndroidTmpFolder + "/androidTest/java/" + testClassPackage.replace(".", "/") + "/" + testClassName + ".java"
 
-        FileWriter(File(testSourceFilePath).also { it.parentFile.mkdirs() }).use {
-            val p = Printer(it)
-            p.print(FileUtil.loadFile(File("license/LICENSE.txt")))
-            p.println(
-                """package $testClassPackage;
-                |
-                |import $baseTestClassPackage.$baseTestClassName;
-                |
-                |/* This class is generated by $generatorName. DO NOT MODIFY MANUALLY */
-                |public class $testClassName extends $baseTestClassName {
-                |
-            """.trimMargin()
-            )
-            p.pushIndent()
+        generateTestMethodsForDirectories(File("compiler/testData/codegen/box"), File("compiler/testData/codegen/boxInline"))
 
-            generateTestMethodsForDirectories(p, File("compiler/testData/codegen/box"), File("compiler/testData/codegen/boxInline"))
-
-            p.popIndent()
-            p.println("}")
-        }
+        pendingUnitTestGenerators.values.forEach { it.generate() }
     }
 
-    private fun generateTestMethodsForDirectories(p: Printer, vararg dirs: File) {
+    private fun generateTestMethodsForDirectories(vararg dirs: File) {
         val holders = mutableMapOf<ConfigurationKey, FilesWriter>()
 
         for (dir in dirs) {
             val files = dir.listFiles() ?: error("Folder with testData is empty: ${dir.absolutePath}")
-            processFiles(p, files, holders)
+            processFiles(files, holders)
         }
 
         holders.values.forEach {
             it.writeFilesOnDisk()
         }
+
+        COMMON.printStatistics()
+        REFLECT.printStatistics()
+        JVM8.printStatistics()
+        JVM8REFLECT.printStatistics()
     }
 
     internal inner class FilesWriter(
+        private val flavorConfig: FlavorConfig,
         private val configuration: CompilerConfiguration
     ) {
-        private val rawFiles: MutableList<Pair<String, String>> = ArrayList()
+        private val rawFiles = arrayListOf<TestClassInfo>()
+        private val unitTestDescriptions = arrayListOf<TestInfo>()
 
         private fun shouldWriteFilesOnDisk(): Boolean = rawFiles.size > 300
 
@@ -127,39 +173,40 @@ class CodegenTestsOnAndroidGenerator private constructor(private val pathManager
         }
 
         fun writeFilesOnDisk() {
-            val disposable = TestDisposable()
-
+            val disposable = Disposer.newDisposable()
             val environment = KotlinCoreEnvironment.createForTests(
                 disposable,
                 configuration.copy().apply { put(CommonConfigurationKeys.MODULE_NAME, "android-module-" + currentModuleIndex++) },
                 EnvironmentConfigFiles.JVM_CONFIG_FILES
             )
 
-            writeFiles(
-                rawFiles.map {
-                    try {
-                        CodegenTestFiles.create(it.first, it.second, environment.project).psiFile
-                    } catch (e: Throwable) {
-                        throw RuntimeException("Error on processing ${it.first}:\n${it.second}", e)
-                    }
-                }, environment
-            )
-            Disposer.dispose(disposable)
-            rawFiles.clear()
+            try {
+                writeFiles(
+                    rawFiles.map {
+                        try {
+                            CodegenTestFiles.create(it.name, it.content, environment.project).psiFile
+                        } catch (e: Throwable) {
+                            throw RuntimeException("Error on processing ${it.name}:\n${it.content}", e)
+                        }
+                    }, environment, unitTestDescriptions
+                )
+            } finally {
+                rawFiles.clear()
+                unitTestDescriptions.clear()
+                Disposer.dispose(disposable)
+            }
         }
 
-        fun addFile(name: String, content: String) {
-            rawFiles.add(name to content)
-        }
-
-        private fun writeFiles(filesToCompile: List<KtFile>, environment: KotlinCoreEnvironment) {
+        private fun writeFiles(
+            filesToCompile: List<KtFile>,
+            environment: KotlinCoreEnvironment,
+            unitTestDescriptions: ArrayList<TestInfo>
+        ) {
             if (filesToCompile.isEmpty()) return
 
-            //1000 files per folder, each folder would be jared by build.gradle script
-            // We can't create one big jar with all test cause dex has problem with memory on teamcity
-            writtenFilesCount += filesToCompile.size
-            val outputDir = File(pathManager.getOutputForCompiledFiles(writtenFilesCount / 1000))
+            val flavorName = flavorConfig.getFlavorForNewFiles(filesToCompile.size)
 
+            val outputDir = File(pathManager.getOutputForCompiledFiles(flavorName))
             println("Generating ${filesToCompile.size} files into ${outputDir.name}, configuration: '${environment.configuration}'...")
 
             val outputFiles = GenerationUtils.compileFiles(filesToCompile, environment).run { destroy(); factory }
@@ -168,14 +215,31 @@ class CodegenTestsOnAndroidGenerator private constructor(private val pathManager
                 outputDir.mkdirs()
             }
             Assert.assertTrue("Cannot create directory for compiled files", outputDir.exists())
-
+            val unitTestFileWriter = pendingUnitTestGenerators.getOrPut(flavorName) {
+                UnitTestFileWriter(
+                    getFlavorUnitTestFolder(flavorName),
+                    flavorName,
+                    generatedTestNames
+                )
+            }
+            unitTestFileWriter.addTests(unitTestDescriptions)
             outputFiles.writeAllTo(outputDir)
+        }
+
+        private fun getFlavorUnitTestFolder(flavourName: String): String {
+            return pathManager.srcFolderInAndroidTmpFolder +
+                    "/androidTest${flavourName.capitalize()}/java/" +
+                    testClassPackage.replace(".", "/") + "/"
+        }
+
+        fun addTest(testFiles: List<TestClassInfo>, info: TestInfo) {
+            rawFiles.addAll(testFiles)
+            unitTestDescriptions.add(info)
         }
     }
 
     @Throws(IOException::class)
     private fun processFiles(
-        printer: Printer,
         files: Array<File>,
         holders: MutableMap<ConfigurationKey, FilesWriter>
     ) {
@@ -184,24 +248,26 @@ class CodegenTestsOnAndroidGenerator private constructor(private val pathManager
         }
 
         for (file in files) {
-            if (SpecialFiles.getExcludedFiles().contains(file.name)) {
-                continue
-            }
             if (file.isDirectory) {
                 val listFiles = file.listFiles()
                 if (listFiles != null) {
-                    processFiles(printer, listFiles, holders)
+                    processFiles(listFiles, holders)
                 }
             } else if (FileUtilRt.getExtension(file.name) != KotlinFileType.EXTENSION) {
                 // skip non kotlin files
             } else {
-                if (!InTextDirectivesUtils.isPassingTarget(TargetBackend.JVM, file)) {
+                if (pathFilter != null && !file.path.contains(pathFilter)) {
                     continue
                 }
 
-                val fullFileText = FileUtil.loadFile(file, true).let {
-                    it.replace("COROUTINES_PACKAGE", "kotlin.coroutines")
+                if (!InTextDirectivesUtils.isPassingTarget(TargetBackend.JVM, file) ||
+                    InTextDirectivesUtils.isIgnoredTarget(TargetBackend.ANDROID, file)
+                ) {
+                    continue
                 }
+
+                val fullFileText =
+                    FileUtil.loadFile(file, true).replace("COROUTINES_PACKAGE", "kotlin.coroutines")
 
                 if (fullFileText.contains("// WITH_COROUTINES")) {
                     if (fullFileText.contains("kotlin.coroutines.experimental")) continue
@@ -212,90 +278,81 @@ class CodegenTestsOnAndroidGenerator private constructor(private val pathManager
                 if (fullFileText.contains("@file:JvmPackageName(")) continue
                 // TODO: Support jvm assertions
                 if (fullFileText.contains("// KOTLIN_CONFIGURATION_FLAGS: ASSERTIONS_MODE=jvm")) continue
-                // TODO: support JVM 8 test with D8
-                if (fullFileText.contains("// JVM_TARGET")) continue
+                val targets = InTextDirectivesUtils.findLinesWithPrefixesRemoved(fullFileText, "// JVM_TARGET:")
+                    .also { it.remove(JvmTarget.JVM_1_6.description) }
+
+                val isJvm8Target =
+                    if (targets.isEmpty()) false
+                    else if (targets.contains(JvmTarget.JVM_1_8.description) && targets.size == 1) true
+                    else continue //TODO: support other targets on Android
+
                 // TODO: support SKIP_JDK6 on new platforms
                 if (fullFileText.contains("// SKIP_JDK6")) continue
 
                 if (hasBoxMethod(fullFileText)) {
                     val testFiles = createTestFiles(file, fullFileText)
-                    val kind = extractConfigurationKind(testFiles)
-                    val jdkKind = getJdkKind(testFiles)
+                    val kind = KotlinBaseTest.extractConfigurationKind(testFiles)
+                    val jdkKind = KotlinBaseTest.getTestJdkKind(testFiles)
                     val keyConfiguration = CompilerConfiguration()
-                    updateConfigurationByDirectivesInTestFiles(testFiles, keyConfiguration)
+                    KotlinBaseTest.updateConfigurationByDirectivesInTestFiles(testFiles, keyConfiguration)
 
                     val key = ConfigurationKey(kind, jdkKind, keyConfiguration.toString())
+                    val compiler = if (isJvm8Target) {
+                        if (kind.withReflection) JVM8REFLECT else JVM8
+                    } else if (kind.withReflection) REFLECT else COMMON
                     val filesHolder = holders.getOrPut(key) {
-                        FilesWriter(KotlinTestUtils.newConfiguration(kind, jdkKind, KotlinTestUtils.getAnnotationsJar()).apply {
+                        FilesWriter(compiler, KotlinTestUtils.newConfiguration(kind, jdkKind, KotlinTestUtils.getAnnotationsJar()).apply {
                             println("Creating new configuration by $key")
-                            updateConfigurationByDirectivesInTestFiles(testFiles, this)
+                            KotlinBaseTest.updateConfigurationByDirectivesInTestFiles(testFiles, this)
                         })
                     }
 
-                    val classWithBoxMethod = patchFiles(file, testFiles, filesHolder) ?: continue
-
-                    val generatedTestName = generateTestName(file.name)
-                    generateTestMethod(
-                        printer,
-                        generatedTestName,
-                        classWithBoxMethod.asString(),
-                        StringUtil.escapeStringCharacters(file.path)
-                    )
+                    patchFilesAndAddTest(file, testFiles, filesHolder)
                 }
             }
         }
     }
 
-    private fun createTestFiles(file: File, expectedText: String): List<CodegenTestCase.TestFile> =
-        KotlinTestUtils.createTestFiles(
-            file.name,
-            expectedText,
-            object : KotlinTestUtils.TestFileFactoryNoModules<CodegenTestCase.TestFile>() {
-                override fun create(fileName: String, text: String, directives: Map<String, String>): CodegenTestCase.TestFile {
-                    return CodegenTestCase.TestFile(fileName, text)
-                }
-            }, false,
-            "kotlin.coroutines"
-        )
-
-
-    private fun generateTestName(fileName: String): String {
-        var result = NameUtils.sanitizeAsJavaIdentifier(FileUtil.getNameWithoutExtension(StringUtil.capitalize(fileName)))
-
-        var i = 0
-        while (generatedTestNames.contains(result)) {
-            result += "_" + i++
-        }
-        generatedTestNames.add(result)
-        return result
-    }
+    private fun createTestFiles(file: File, expectedText: String): List<KotlinBaseTest.TestFile> =
+        CodegenTestCase.createTestFilesFromFile(file, expectedText, "kotlin.coroutines", false, TargetBackend.JVM)
 
     companion object {
-        private const val testClassPackage = "org.jetbrains.kotlin.android.tests"
-        private const val testClassName = "CodegenTestCaseOnAndroid"
-        private const val baseTestClassPackage = "org.jetbrains.kotlin.android.tests"
-        private const val baseTestClassName = "AbstractCodegenTestCaseOnAndroid"
-        private const val generatorName = "CodegenTestsOnAndroidGenerator"
+        const val GRADLE_VERSION = "5.6.4" // update GRADLE_SHA_256 on change
+        const val GRADLE_SHA_256 = "1f3067073041bc44554d0efe5d402a33bc3d3c93cc39ab684f308586d732a80d"
+        const val testClassPackage = "org.jetbrains.kotlin.android.tests"
+        const val testClassName = "CodegenTestCaseOnAndroid"
+        const val baseTestClassPackage = "org.jetbrains.kotlin.android.tests"
+        const val baseTestClassName = "AbstractCodegenTestCaseOnAndroid"
+        const val generatorName = "CodegenTestsOnAndroidGenerator"
 
 
+        @JvmOverloads
         @JvmStatic
         @Throws(Throwable::class)
-        fun generate(pathManager: PathManager) {
-            CodegenTestsOnAndroidGenerator(pathManager).generateOutputFiles()
+        fun generate(pathManager: PathManager, skipSdkDirWriting: Boolean = false) {
+            CodegenTestsOnAndroidGenerator(pathManager).prepareAndroidModuleAndGenerateTests(skipSdkDirWriting)
         }
-
 
         private fun hasBoxMethod(text: String): Boolean {
             return text.contains("fun box()")
         }
 
-        private fun generateTestMethod(p: Printer, testName: String, className: String, filePath: String) {
-            p.println("public void test$testName() throws Exception {")
-            p.pushIndent()
-            p.println("invokeBoxMethod($className.class, \"$filePath\", \"OK\");")
-            p.popIndent()
-            p.println("}")
-            p.println()
+        @Throws(IOException::class)
+        internal fun writeAndroidSkdToLocalProperties(pathManager: PathManager) {
+            val sdkRoot = KotlinTestUtils.getAndroidSdkSystemIndependentPath()
+            println("Writing android sdk to local.properties: $sdkRoot")
+            val file = File(pathManager.tmpFolder + "/local.properties")
+            FileWriter(file).use { fw -> fw.write("sdk.dir=$sdkRoot") }
+        }
+
+        @JvmStatic
+        fun main(args: Array<String>) {
+            val tmpFolder = createTempDir()
+            println("Created temporary folder for android tests: " + tmpFolder.absolutePath)
+            val rootFolder = File("")
+            val pathManager = PathManager(rootFolder.absolutePath, tmpFolder.absolutePath)
+            generate(pathManager, true)
+            println("Android test project is generated into " + tmpFolder.absolutePath + " folder")
         }
     }
 }

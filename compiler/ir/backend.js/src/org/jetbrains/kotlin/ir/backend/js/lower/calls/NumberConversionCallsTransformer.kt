@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.ir.backend.js.lower.calls
@@ -8,8 +8,8 @@ package org.jetbrains.kotlin.ir.backend.js.lower.calls
 import org.jetbrains.kotlin.ir.backend.js.JsIrBackendContext
 import org.jetbrains.kotlin.ir.backend.js.ir.JsIrBuilder
 import org.jetbrains.kotlin.ir.backend.js.utils.ConversionNames
-import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
 
 class NumberConversionCallsTransformer(context: JsIrBackendContext) : CallsTransformer {
     private val intrinsics = context.intrinsics
@@ -74,7 +74,7 @@ class NumberConversionCallsTransformer(context: JsIrBackendContext) : CallsTrans
         }
     }
 
-    override fun transformCall(call: IrCall): IrExpression {
+    override fun transformFunctionAccess(call: IrFunctionAccessExpression, doNotIntrinsify: Boolean): IrExpression {
         val function = call.symbol.owner
         function.dispatchReceiverParameter?.also {
             val key = SimpleMemberKey(it.type, function.name)
@@ -85,7 +85,7 @@ class NumberConversionCallsTransformer(context: JsIrBackendContext) : CallsTrans
         return call
     }
 
-    private fun useDispatchReceiver(call: IrCall): IrExpression {
-        return JsIrBuilder.buildImplicitCast(call.dispatchReceiver!!, call.type)
+    private fun useDispatchReceiver(call: IrFunctionAccessExpression): IrExpression {
+        return JsIrBuilder.buildReinterpretCast(call.dispatchReceiver!!, call.type)
     }
 }

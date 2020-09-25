@@ -2,16 +2,22 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm")
+    id("jps-compatible")
 }
 
 dependencies {
     compileOnly(project(":core:util.runtime"))
     compileOnly(project(":core:descriptors"))
     compileOnly(project(":core:descriptors.jvm"))
-    compileOnly("org.jetbrains:annotations:13.0")
 
     testCompile(projectTests(":compiler:tests-common"))
     testCompile(projectTests(":generators:test-generator"))
+
+    testRuntimeOnly(intellijCoreDep()) { includeJars("intellij-core") }
+    Platform[192].orHigher {
+        testRuntimeOnly(intellijDep()) { includeJars("platform-concurrency") }
+        testRuntimeOnly(jpsStandalone()) { includeJars("jps-model") }
+    }
 }
 
 sourceSets {
@@ -31,6 +37,8 @@ val compileKotlin by tasks.getting(KotlinCompile::class) {
 
 val generateTests by generator("org.jetbrains.kotlin.generators.tests.GenerateRuntimeDescriptorTestsKt")
 
-projectTest {
+projectTest(parallel = true) {
     workingDir = rootDir
 }
+
+testsJar()

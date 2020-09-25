@@ -8,24 +8,22 @@ jvmTarget = "1.6"
 
 dependencies {
     compile(kotlinStdlib())
+    compile(commonDep("org.jetbrains.kotlinx", "kotlinx-coroutines-core"))
     compileOnly(project(":kotlin-reflect-api"))
-    compile(commonDep("org.jetbrains.kotlinx", "kotlinx-coroutines-core")) { isTransitive = false }
-    runtime(project(":kotlin-reflect"))
+    testCompile(commonDep("junit"))
 }
 
 sourceSets {
     "main" { projectDefault() }
-    "test" {}
+    "test" { projectDefault() }
 }
 
-val jar = runtimeJar()
-val sourcesJar = sourcesJar()
-val javadocJar = javadocJar()
-
-dist()
-
-ideaPlugin {
-    from(jar, sourcesJar)
+tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>> {
+    kotlinOptions.freeCompilerArgs += "-Xallow-kotlin-package"
 }
 
 publish()
+
+runtimeJar()
+sourcesJar()
+javadocJar()

@@ -19,17 +19,16 @@ package org.jetbrains.kotlin.daemon
 import com.intellij.util.containers.StringInterner
 import gnu.trove.THashMap
 import gnu.trove.THashSet
-import org.jetbrains.kotlin.daemon.common.CompilerCallbackServicesFacade
 import org.jetbrains.kotlin.daemon.common.DummyProfiler
 import org.jetbrains.kotlin.daemon.common.Profiler
+import org.jetbrains.kotlin.daemon.common.withMeasure
 import org.jetbrains.kotlin.incremental.components.LookupInfo
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.incremental.components.Position
 import org.jetbrains.kotlin.incremental.components.ScopeKind
 
-
 class RemoteLookupTrackerClient(
-    val facade: CompilerCallbackServicesFacade,
+    @Suppress("DEPRECATION") val facade: org.jetbrains.kotlin.daemon.common.CompilerCallbackServicesFacade,
     eventManager: EventManager,
     val profiler: Profiler = DummyProfiler()
 ) : LookupTracker {

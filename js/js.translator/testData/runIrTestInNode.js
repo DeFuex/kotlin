@@ -45,7 +45,7 @@ files.forEach(function (path) {
     }
 });
 
-var allFiles = [].concat(files, runtimeFiles);
+var allFiles = [].concat(runtimeFiles, files);
 
 // Evaluate files and run box function
 
@@ -59,4 +59,5 @@ allFiles.forEach(function(path) {
     })
 });
 
-console.log(vm.runInContext("box()", sandbox));
+// TODO: Support multimodule tests
+console.log(vm.runInContext("JS_TESTS.box()", sandbox));

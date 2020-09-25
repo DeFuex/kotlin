@@ -25,6 +25,7 @@ import org.jetbrains.kotlin.idea.MainFunctionDetector
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.name.FqNameUnsafe
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.resolve.descriptorUtil.platform
 
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import java.util.*
@@ -231,7 +232,7 @@ class OverloadResolver(
 
     private fun DeclarationDescriptor.isPrivate() =
         this is DeclarationDescriptorWithVisibility &&
-                Visibilities.isPrivate(this.visibility)
+                DescriptorVisibilities.isPrivate(this.visibility)
 
     private fun checkOverloadsInClass(members: Collection<CallableMemberDescriptor>) {
         if (members.size == 1) return
@@ -290,7 +291,7 @@ class OverloadResolver(
         if (member1 !is MemberDescriptor || member2 !is MemberDescriptor) return false
 
         return member1.isActual && member2.isActual &&
-                member1.getMultiTargetPlatform() != member2.getMultiTargetPlatform()
+                member1.platform != member2.platform
     }
 
     private fun reportRedeclarations(redeclarations: Collection<DeclarationDescriptorNonRoot>) {

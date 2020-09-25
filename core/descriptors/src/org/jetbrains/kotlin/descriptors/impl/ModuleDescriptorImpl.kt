@@ -17,37 +17,43 @@
 package org.jetbrains.kotlin.descriptors.impl
 
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
-import org.jetbrains.kotlin.descriptors.InvalidModuleException
-import org.jetbrains.kotlin.descriptors.ModuleDescriptor
-import org.jetbrains.kotlin.descriptors.PackageFragmentProvider
-import org.jetbrains.kotlin.descriptors.PackageViewDescriptor
+import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.resolve.MultiTargetPlatform
+import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.storage.StorageManager
+import org.jetbrains.kotlin.types.checker.REFINER_CAPABILITY
+import org.jetbrains.kotlin.types.checker.Ref
+import org.jetbrains.kotlin.types.refinement.TypeRefinement
 import org.jetbrains.kotlin.utils.sure
-import java.lang.IllegalArgumentException
 
 class ModuleDescriptorImpl @JvmOverloads constructor(
     moduleName: Name,
     private val storageManager: StorageManager,
     override val builtIns: KotlinBuiltIns,
     // May be null in compiler context, should be not-null in IDE context
-    multiTargetPlatform: MultiTargetPlatform? = null,
-    capabilities: Map<ModuleDescriptor.Capability<*>, Any?> = emptyMap(),
-    override val stableName: Name? = null
+    override val platform: TargetPlatform? = null,
+    capabilities: Map<ModuleCapability<*>, Any?> = emptyMap(),
+    override val stableName: Name? = null,
 ) : DeclarationDescriptorImpl(Annotations.EMPTY, moduleName), ModuleDescriptor {
+    private val capabilities: Map<ModuleCapability<*>, Any?>
+
     init {
         if (!moduleName.isSpecial) {
             throw IllegalArgumentException("Module name must be special: $moduleName")
         }
+        this.capabilities = capabilities.toMutableMap()
+        @OptIn(TypeRefinement::class)
+        this.capabilities[REFINER_CAPABILITY] = Ref(null)
     }
-
-    private val capabilities = capabilities + (multiTargetPlatform?.let { mapOf(MultiTargetPlatform.CAPABILITY to it) } ?: emptyMap())
 
     private var dependencies: ModuleDependencies? = null
     private var packageFragmentProviderForModuleContent: PackageFragmentProvider? = null
+
+    val packageFragmentProviderForModuleContentWithoutDependencies: PackageFragmentProvider
+        get() = packageFragmentProviderForModuleContent
+            ?: throw IllegalStateException("Module $id was not initialized by the time it's content without dependencies was queried")
 
     override var isValid: Boolean = true
 
@@ -116,7 +122,12 @@ class ModuleDescriptorImpl @JvmOverloads constructor(
     }
 
     override fun shouldSeeInternalsOf(targetModule: ModuleDescriptor): Boolean {
-        return this == targetModule || targetModule in dependencies!!.modulesWhoseInternalsAreVisible || targetModule in expectedByModules
+        if (this == targetModule) return true
+        if (targetModule in dependencies!!.modulesWhoseInternalsAreVisible) return true
+        if (targetModule in expectedByModules) return true
+        if (this in targetModule.expectedByModules) return true
+
+        return false
     }
 
     private val id: String
@@ -137,7 +148,7 @@ class ModuleDescriptorImpl @JvmOverloads constructor(
         }
 
     @Suppress("UNCHECKED_CAST")
-    override fun <T> getCapability(capability: ModuleDescriptor.Capability<T>) = capabilities[capability] as? T
+    override fun <T> getCapability(capability: ModuleCapability<T>) = capabilities[capability] as? T
 }
 
 interface ModuleDependencies {

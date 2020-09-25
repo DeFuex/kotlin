@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.quickfix
@@ -20,6 +9,7 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.diagnostics.Diagnostic
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.core.quickfix.QuickFixUtil
 import org.jetbrains.kotlin.lexer.KtModifierKeywordToken
 import org.jetbrains.kotlin.lexer.KtTokens
@@ -37,30 +27,26 @@ class RemoveModifierFix(
         val modifierText = modifier.value
         when {
             isRedundant ->
-                "Remove redundant '$modifierText' modifier"
+                KotlinBundle.message("remove.redundant.0.modifier", modifierText)
             modifier === KtTokens.ABSTRACT_KEYWORD || modifier === KtTokens.OPEN_KEYWORD ->
-                "Make ${AddModifierFix.getElementName(element)} not $modifierText"
+                KotlinBundle.message("make.0.not.1", AddModifierFix.getElementName(element), modifierText)
             else ->
-                "Remove '$modifierText' modifier"
+                KotlinBundle.message("remove.0.modifier", modifierText, modifier)
         }
     }
 
-    override fun getFamilyName() = "Remove modifier"
+    override fun getFamilyName() = KotlinBundle.message("remove.modifier")
 
     override fun getText() = text
 
-    override fun isAvailableImpl(project: Project, editor: Editor?, file: PsiFile) = (element?.hasModifier(modifier) ?: false)
+    override fun isAvailableImpl(project: Project, editor: Editor?, file: PsiFile) = element?.hasModifier(modifier) == true
 
     override fun invokeImpl(project: Project, editor: Editor?, file: PsiFile) {
         invoke()
     }
 
-    fun invoke() {
-        val element = element ?: return
-        //TODO: without this copy&replace we get bad formatting on removing last modifier
-        val newElement = element.copy() as KtModifierListOwner
-        newElement.removeModifier(modifier)
-        element.replace(newElement)
+    operator fun invoke() {
+        element?.removeModifier(modifier)
     }
 
     companion object {
@@ -131,6 +117,19 @@ class RemoveModifierFix(
                     val property = modifierList.parent as? KtProperty ?: return null
                     if (!property.hasModifier(KtTokens.LATEINIT_KEYWORD)) return null
                     return RemoveModifierFix(property, KtTokens.LATEINIT_KEYWORD, isRedundant = false)
+                }
+            }
+        }
+
+        fun createRemoveFunFromInterfaceFactory(): KotlinSingleIntentionActionFactory {
+            return object : KotlinSingleIntentionActionFactory() {
+                override fun createAction(diagnostic: Diagnostic): RemoveModifierFix? {
+                    val keyword = diagnostic.psiElement
+                    val modifierList = keyword.parent as? KtDeclarationModifierList ?: return null
+                    val funInterface = (modifierList.parent as? KtClass)?.takeIf {
+                        it.isInterface() && it.hasModifier(KtTokens.FUN_KEYWORD)
+                    } ?: return null
+                    return RemoveModifierFix(funInterface, KtTokens.FUN_KEYWORD, isRedundant = false)
                 }
             }
         }

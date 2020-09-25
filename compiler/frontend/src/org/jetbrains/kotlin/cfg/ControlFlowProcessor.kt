@@ -32,7 +32,7 @@ import org.jetbrains.kotlin.cfg.pseudocode.instructions.eval.InstructionWithValu
 import org.jetbrains.kotlin.cfg.pseudocode.instructions.eval.MagicKind
 import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.config.LanguageVersionSettings
-import org.jetbrains.kotlin.contracts.description.InvocationKind
+import org.jetbrains.kotlin.contracts.description.EventOccurrencesRange
 import org.jetbrains.kotlin.contracts.description.canBeRevisited
 import org.jetbrains.kotlin.contracts.description.isDefinitelyVisited
 import org.jetbrains.kotlin.descriptors.*
@@ -47,9 +47,9 @@ import org.jetbrains.kotlin.psi.psiUtil.getQualifiedElementSelector
 import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.isAncestor
 import org.jetbrains.kotlin.resolve.BindingContext
-import org.jetbrains.kotlin.resolve.BindingContextUtils
 import org.jetbrains.kotlin.resolve.BindingTrace
 import org.jetbrains.kotlin.resolve.CompileTimeConstantUtils
+import org.jetbrains.kotlin.resolve.bindingContextUtil.getEnclosingFunctionDescriptor
 import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.ArgumentMatch
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
@@ -79,8 +79,8 @@ class ControlFlowProcessor(
         return pseudocode
     }
 
-    private fun generate(subroutine: KtElement, invocationKind: InvocationKind? = null): Pseudocode {
-        builder.enterSubroutine(subroutine, invocationKind)
+    private fun generate(subroutine: KtElement, eventOccurrencesRange: EventOccurrencesRange? = null): Pseudocode {
+        builder.enterSubroutine(subroutine, eventOccurrencesRange)
         val cfpVisitor = CFPVisitor(builder)
         if (subroutine is KtDeclarationWithBody && subroutine !is KtSecondaryConstructor) {
             val valueParameters = subroutine.valueParameters
@@ -97,7 +97,7 @@ class ControlFlowProcessor(
         } else {
             cfpVisitor.generateInstructions(subroutine)
         }
-        return builder.exitSubroutine(subroutine, invocationKind)
+        return builder.exitSubroutine(subroutine, eventOccurrencesRange)
     }
 
     private fun generateImplicitReturnValue(bodyExpression: KtExpression, subroutine: KtElement) {
@@ -186,7 +186,8 @@ class ControlFlowProcessor(
             val expression = KtPsiUtil.deparenthesize(element) ?: return
 
             if (expression is KtStatementExpression || expression is KtTryExpression
-                || expression is KtIfExpression || expression is KtWhenExpression) {
+                || expression is KtIfExpression || expression is KtWhenExpression
+            ) {
                 return
             }
 
@@ -229,7 +230,7 @@ class ControlFlowProcessor(
 
         private fun getResolvedCallAccessTarget(element: KtElement?): AccessTarget =
             element.getResolvedCall(trace.bindingContext)?.let { AccessTarget.Call(it) }
-                    ?: AccessTarget.BlackBox
+                ?: AccessTarget.BlackBox
 
         private fun getDeclarationAccessTarget(element: KtElement): AccessTarget {
             val descriptor = trace.get(BindingContext.DECLARATION_TO_DESCRIPTOR, element)
@@ -877,12 +878,14 @@ class ControlFlowProcessor(
                 if (loop == null) {
                     trace.report(BREAK_OR_CONTINUE_OUTSIDE_A_LOOP.on(expression))
                 } else {
-                    val whenExpression = PsiTreeUtil.getParentOfType(
-                        expression, KtWhenExpression::class.java, true,
-                        KtLoopExpression::class.java
-                    )
-                    if (whenExpression != null) {
-                        trace.report(BREAK_OR_CONTINUE_IN_WHEN.on(expression))
+                    if (true != languageVersionSettings?.supportsFeature(LanguageFeature.AllowBreakAndContinueInsideWhen)) {
+                        val whenExpression = PsiTreeUtil.getParentOfType(
+                            expression, KtWhenExpression::class.java, true,
+                            KtLoopExpression::class.java
+                        )
+                        if (whenExpression != null) {
+                            trace.report(BREAK_OR_CONTINUE_IN_WHEN.on(expression))
+                        }
                     }
                 }
             }
@@ -915,15 +918,16 @@ class ControlFlowProcessor(
         private fun jumpDoesNotCrossFunctionBoundary(jumpExpression: KtExpressionWithLabel, jumpTarget: KtLoopExpression): Boolean {
             val bindingContext = trace.bindingContext
 
-            val labelExprEnclosingFunc = BindingContextUtils.getEnclosingFunctionDescriptor(bindingContext, jumpExpression)
-            val labelTargetEnclosingFunc = BindingContextUtils.getEnclosingFunctionDescriptor(bindingContext, jumpTarget)
+            val labelExprEnclosingFunc = getEnclosingFunctionDescriptor(bindingContext, jumpExpression)
+            val labelTargetEnclosingFunc = getEnclosingFunctionDescriptor(bindingContext, jumpTarget)
             return if (labelExprEnclosingFunc !== labelTargetEnclosingFunc) {
                 // Check to report only once
                 if (builder.getLoopExitPoint(jumpTarget) != null ||
                     // Local class secondary constructors are handled differently
                     // They are the only local class element NOT included in owner pseudocode
                     // See generateInitializersForScriptClassOrObject && generateDeclarationForLocalClassOrObjectIfNeeded
-                    labelExprEnclosingFunc is ConstructorDescriptor && !labelExprEnclosingFunc.isPrimary) {
+                    labelExprEnclosingFunc is ConstructorDescriptor && !labelExprEnclosingFunc.isPrimary
+                ) {
                     trace.report(BREAK_OR_CONTINUE_JUMPS_ACROSS_FUNCTION_BOUNDARY.on(jumpExpression))
                 }
                 false
@@ -1031,11 +1035,11 @@ class ControlFlowProcessor(
             return parent.parent is KtDoWhileExpression
         }
 
-        private fun visitFunction(function: KtFunction, invocationKind: InvocationKind? = null) {
-            if (invocationKind == null) {
+        private fun visitFunction(function: KtFunction, eventOccurrencesRange: EventOccurrencesRange? = null) {
+            if (eventOccurrencesRange == null) {
                 processLocalDeclaration(function)
             } else {
-                visitInlinedFunction(function, invocationKind)
+                visitInlinedFunction(function, eventOccurrencesRange)
             }
 
             val isAnonymousFunction = function is KtFunctionLiteral || function.name == null
@@ -1044,7 +1048,7 @@ class ControlFlowProcessor(
             }
         }
 
-        private fun visitInlinedFunction(lambdaFunctionLiteral: KtFunction, invocationKind: InvocationKind) {
+        private fun visitInlinedFunction(lambdaFunctionLiteral: KtFunction, eventOccurrencesRange: EventOccurrencesRange) {
             // Defer emitting of inlined declaration
             deferredGeneratorsStack.peek().add({ builder ->
                                                    val beforeDeclaration = builder.createUnboundLabel("before inlined declaration")
@@ -1052,13 +1056,13 @@ class ControlFlowProcessor(
 
                                                    builder.bindLabel(beforeDeclaration)
 
-                                                   if (!invocationKind.isDefinitelyVisited()) {
+                                                   if (!eventOccurrencesRange.isDefinitelyVisited()) {
                                                        builder.nondeterministicJump(afterDeclaration, lambdaFunctionLiteral, null)
                                                    }
 
-                                                   generate(lambdaFunctionLiteral, invocationKind)
+                                                   generate(lambdaFunctionLiteral, eventOccurrencesRange)
 
-                                                   if (invocationKind.canBeRevisited()) {
+                                                   if (eventOccurrencesRange.canBeRevisited()) {
                                                        builder.nondeterministicJump(beforeDeclaration, lambdaFunctionLiteral, null)
                                                    }
 
@@ -1413,7 +1417,8 @@ class ControlFlowProcessor(
                 for (declaration in classOrObject.declarations) {
                     if (declaration is KtSecondaryConstructor ||
                         declaration is KtProperty ||
-                        declaration is KtAnonymousInitializer) {
+                        declaration is KtAnonymousInitializer
+                    ) {
                         continue
                     }
                     generateInstructions(declaration)
@@ -1488,7 +1493,8 @@ class ControlFlowProcessor(
             mark(expression)
             val receiverExpression = expression.receiverExpression
             if (receiverExpression != null &&
-                trace.bindingContext.get(BindingContext.DOUBLE_COLON_LHS, receiverExpression) is DoubleColonLHS.Expression) {
+                trace.bindingContext.get(BindingContext.DOUBLE_COLON_LHS, receiverExpression) is DoubleColonLHS.Expression
+            ) {
                 generateInstructions(receiverExpression)
                 createNonSyntheticValue(expression, MagicKind.BOUND_CALLABLE_REFERENCE, receiverExpression)
             } else {

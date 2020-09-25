@@ -25,30 +25,29 @@ import org.jetbrains.kotlin.load.java.JvmAnnotationNames
 import org.jetbrains.kotlin.load.kotlin.FileBasedKotlinClass
 import org.jetbrains.kotlin.load.kotlin.KotlinJvmBinaryClass
 import org.jetbrains.kotlin.load.kotlin.header.KotlinClassHeader
-import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.test.InTextDirectivesUtils
+import org.jetbrains.kotlin.test.KotlinBaseTest
 import org.jetbrains.org.objectweb.asm.*
 import org.jetbrains.org.objectweb.asm.tree.MethodNode
 import java.util.*
 
 object InlineTestUtil {
-    fun checkNoCallsToInline(outputFiles: Iterable<OutputFile>, sourceFiles: List<KtFile>) {
+    fun checkNoCallsToInline(outputFiles: Iterable<OutputFile>, files: List<KotlinBaseTest.TestFile>) {
         val inlineInfo = obtainInlineInfo(outputFiles)
         val inlineMethods = inlineInfo.inlineMethods
-        assert(!inlineMethods.isEmpty()) { "There are no inline methods" }
+        assert(inlineMethods.isNotEmpty()) { "There are no inline methods" }
 
         val notInlinedCalls = checkInlineMethodNotInvoked(outputFiles, inlineMethods)
         assert(notInlinedCalls.isEmpty()) { "All inline methods should be inlined but:\n" + notInlinedCalls.joinToString("\n") }
 
-        val skipParameterChecking = sourceFiles.any {
-            InTextDirectivesUtils.isDirectiveDefined(it.text, "NO_CHECK_LAMBDA_INLINING")
+        val skipParameterChecking = files.any {
+            "NO_CHECK_LAMBDA_INLINING" in it.directives
         } || !doLambdaInliningCheck(outputFiles, inlineInfo)
 
         if (!skipParameterChecking) {
-            val notInlinedParameters = checkParametersInlined(outputFiles, inlineInfo, sourceFiles)
+            val notInlinedParameters = checkParametersInlined(outputFiles, inlineInfo, files)
             assert(notInlinedParameters.isEmpty()) {
                 "All inline parameters should be inlined but:\n${notInlinedParameters.joinToString("\n")}\n" +
-                "but if you have not inlined lambdas or anonymous objects enable NO_CHECK_LAMBDA_INLINING directive"
+                        "but if you have not inlined lambdas or anonymous objects enable NO_CHECK_LAMBDA_INLINING directive"
             }
         }
     }
@@ -61,7 +60,9 @@ object InlineTestUtil {
             val inlineFunctions = inlineFunctionsJvmNames(binaryClass.classHeader)
 
             val classVisitor = object : ClassVisitorWithName() {
-                override fun visitMethod(access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?): MethodVisitor? {
+                override fun visitMethod(
+                    access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?
+                ): MethodVisitor? {
                     if (name + desc in inlineFunctions) {
                         inlineMethods.add(MethodInfo(className, name, desc))
                     }
@@ -70,7 +71,7 @@ object InlineTestUtil {
             }
 
             ClassReader(file.asByteArray()).accept(classVisitor, 0)
-            binaryClasses.put(classVisitor.className, binaryClass)
+            binaryClasses[classVisitor.className] = binaryClass
         }
 
         return InlineInfo(inlineMethods, binaryClasses)
@@ -84,9 +85,11 @@ object InlineTestUtil {
 
             //if inline function creates anonymous object then do not try to check that all lambdas are inlined
             val classVisitor = object : ClassVisitorWithName() {
-                override fun visitMethod(access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?): MethodVisitor? {
+                override fun visitMethod(
+                    access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?
+                ): MethodVisitor? {
                     if (name + desc in inlineFunctions) {
-                        return object: MethodNodeWithAnonymousObjectCheck(inlineInfo, access, name, desc, signature, exceptions) {
+                        return object : MethodNodeWithAnonymousObjectCheck(inlineInfo, access, name, desc, signature, exceptions) {
                             override fun onAnonymousConstructorCallOrSingletonAccess(owner: String) {
                                 doLambdaInliningCheck = false
                             }
@@ -126,7 +129,9 @@ object InlineTestUtil {
                     return null
                 }
 
-                override fun visitMethod(access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?): MethodVisitor? {
+                override fun visitMethod(
+                    access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?
+                ): MethodVisitor? {
                     if (skipMethodsOfThisClass) {
                         return null
                     }
@@ -160,11 +165,13 @@ object InlineTestUtil {
         return notInlined
     }
 
-    private fun checkParametersInlined(outputFiles: Iterable<OutputFile>, inlineInfo: InlineInfo, sourceFiles: List<KtFile>): ArrayList<NotInlinedParameter> {
+    private fun checkParametersInlined(
+        outputFiles: Iterable<OutputFile>, inlineInfo: InlineInfo, files: List<KotlinBaseTest.TestFile>
+    ): ArrayList<NotInlinedParameter> {
         val skipMethods =
-                sourceFiles.flatMap {
-                    InTextDirectivesUtils.findLinesWithPrefixesRemoved(it.text, "// SKIP_INLINE_CHECK_IN: ")
-                }.toSet()
+            files.flatMap {
+                it.directives.listValues("SKIP_INLINE_CHECK_IN") ?: emptyList()
+            }.toSet()
 
         val inlinedMethods = inlineInfo.inlineMethods
         val notInlinedParameters = ArrayList<NotInlinedParameter>()
@@ -172,7 +179,9 @@ object InlineTestUtil {
             if (!isClassOrPackagePartKind(loadBinaryClass(file))) continue
 
             ClassReader(file.asByteArray()).accept(object : ClassVisitorWithName() {
-                override fun visitMethod(access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?): MethodVisitor? {
+                override fun visitMethod(
+                    access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?
+                ): MethodVisitor? {
                     val declaration = MethodInfo(className, name, desc)
 
                     //do not check anonymous object creation in inline functions and in package facades
@@ -184,7 +193,7 @@ object InlineTestUtil {
                         return null
                     }
 
-                    return object: MethodNodeWithAnonymousObjectCheck(inlineInfo, access, name, desc, signature, exceptions) {
+                    return object : MethodNodeWithAnonymousObjectCheck(inlineInfo, access, name, desc, signature, exceptions) {
                         override fun onAnonymousConstructorCallOrSingletonAccess(owner: String) {
                             val fromCall = MethodInfo(className, this.name, this.desc)
                             notInlinedParameters.add(NotInlinedParameter(owner, fromCall))
@@ -201,29 +210,27 @@ object InlineTestUtil {
         if (classInternalName.startsWith("kotlin/jvm/internal/"))
             return true
 
-        return isClassOrPackagePartKind(inlineInfo.binaryClasses[classInternalName]!!)
+        return isClassOrPackagePartKind(inlineInfo.binaryClasses.getValue(classInternalName))
     }
 
     private fun isClassOrPackagePartKind(klass: KotlinJvmBinaryClass): Boolean {
         return klass.classHeader.kind == KotlinClassHeader.Kind.CLASS && !klass.classId.isLocal
-               || klass.classHeader.kind == KotlinClassHeader.Kind.FILE_FACADE /*single file facade equals to package part*/
-               || klass.classHeader.kind == KotlinClassHeader.Kind.MULTIFILE_CLASS_PART
+                || klass.classHeader.kind == KotlinClassHeader.Kind.FILE_FACADE /*single file facade equals to package part*/
+                || klass.classHeader.kind == KotlinClassHeader.Kind.MULTIFILE_CLASS_PART
     }
 
-    private fun loadBinaryClass(file: OutputFile): KotlinJvmBinaryClass {
-        val klass = FileBasedKotlinClass.create(file.asByteArray()) {
-            className, classVersion, classHeader, innerClasses ->
+    private fun loadBinaryClass(file: OutputFile): KotlinJvmBinaryClass =
+        FileBasedKotlinClass.create<FileBasedKotlinClass>(file.asByteArray()) { className, classVersion, classHeader, innerClasses ->
             object : FileBasedKotlinClass(className, classVersion, classHeader, innerClasses) {
                 override val location: String
                     get() = throw UnsupportedOperationException()
+
                 override fun getFileContents(): ByteArray = throw UnsupportedOperationException()
                 override fun hashCode(): Int = throw UnsupportedOperationException()
                 override fun equals(other: Any?): Boolean = throw UnsupportedOperationException()
                 override fun toString(): String = throw UnsupportedOperationException()
             }
         }!!
-        return klass
-    }
 
     private class InlineInfo(val inlineMethods: Set<MethodInfo>, val binaryClasses: Map<String, KotlinJvmBinaryClass>)
 
@@ -242,9 +249,11 @@ object InlineTestUtil {
         }
     }
 
-    private abstract class MethodNodeWithAnonymousObjectCheck(val inlineInfo: InlineInfo, access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?) : MethodNode(Opcodes.API_VERSION, access, name, desc, signature, exceptions) {
+    private abstract class MethodNodeWithAnonymousObjectCheck(
+        val inlineInfo: InlineInfo, access: Int, name: String, desc: String, signature: String?, exceptions: Array<String>?
+    ) : MethodNode(Opcodes.API_VERSION, access, name, desc, signature, exceptions) {
         private fun isInlineParameterLikeOwner(owner: String) =
-                "$" in owner && !isTopLevelOrInnerOrPackageClass(owner, inlineInfo)
+            "$" in owner && !isTopLevelOrInnerOrPackageClass(owner, inlineInfo)
 
         override fun visitMethodInsn(opcode: Int, owner: String, name: String, desc: String, itf: Boolean) {
             if ("<init>" == name && isInlineParameterLikeOwner(owner)) {

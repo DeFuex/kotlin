@@ -20,7 +20,11 @@ import org.gradle.api.GradleException
 import org.gradle.api.Task
 import org.gradle.api.tasks.TaskInputs
 import org.gradle.api.tasks.TaskOutputs
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.gradle.util.GradleVersion
+import java.io.File
+
+const val minSupportedGradleVersion = "5.3"
 
 internal val Task.inputsCompatible: TaskInputs get() = inputs
 
@@ -46,12 +50,18 @@ internal fun TaskInputs.dirCompatible(dirPath: Any) {
     inputsDirMethod(this, dirPath)
 }
 
-internal fun checkGradleCompatibility(minSupportedVersion: GradleVersion = GradleVersion.version("4.1")) {
+internal fun checkGradleCompatibility(
+    withComponent: String = "the Kotlin Gradle plugin",
+    minSupportedVersion: GradleVersion = GradleVersion.version(minSupportedGradleVersion)
+) {
     val currentVersion = GradleVersion.current()
     if (currentVersion < minSupportedVersion) {
         throw GradleException(
-            "Current version of Gradle $currentVersion is not compatible with Kotlin plugin. " +
-                    "Please use Gradle $minSupportedVersion or newer or previous version of Kotlin plugin."
+            "The current Gradle version ${currentVersion.version} is not compatible with $withComponent. " +
+                    "Please use Gradle ${minSupportedVersion.version} or newer, or the previous version of the Kotlin plugin."
         )
     }
 }
+
+internal val AbstractArchiveTask.archivePathCompatible: File
+    get() = archiveFile.get().asFile

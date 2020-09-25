@@ -16,30 +16,38 @@
 
 package org.jetbrains.kotlinx.serialization.compiler.extensions
 
+import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.descriptors.SimpleFunctionDescriptor
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.name.SpecialNames
+import org.jetbrains.kotlin.platform.jvm.isJvm
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.descriptorUtil.platform
 import org.jetbrains.kotlin.resolve.extensions.SyntheticResolveExtension
 import org.jetbrains.kotlin.resolve.lazy.LazyClassContext
 import org.jetbrains.kotlin.resolve.lazy.declarations.ClassMemberDeclarationProvider
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlinx.serialization.compiler.backend.common.SerializerCodegen
 import org.jetbrains.kotlinx.serialization.compiler.resolve.*
 import org.jetbrains.kotlinx.serialization.compiler.resolve.SerializationAnnotations.serialInfoFqName
 import java.util.*
 
 open class SerializationResolveExtension : SyntheticResolveExtension {
     override fun getSyntheticNestedClassNames(thisDescriptor: ClassDescriptor): List<Name> = when {
-        thisDescriptor.annotations.hasAnnotation(serialInfoFqName) -> listOf(SerialEntityNames.IMPL_NAME)
-        thisDescriptor.isInternalSerializable && !thisDescriptor.hasCompanionObjectAsSerializer ->
+        thisDescriptor.annotations.hasAnnotation(serialInfoFqName) && thisDescriptor.platform?.isJvm() == true -> listOf(SerialEntityNames.IMPL_NAME)
+        (thisDescriptor.shouldHaveGeneratedSerializer) && !thisDescriptor.hasCompanionObjectAsSerializer ->
             listOf(SerialEntityNames.SERIALIZER_CLASS_NAME)
         else -> listOf()
     }
 
+    override fun getPossibleSyntheticNestedClassNames(thisDescriptor: ClassDescriptor): List<Name>? {
+        return listOf(SerialEntityNames.IMPL_NAME, SerialEntityNames.SERIALIZER_CLASS_NAME)
+    }
+
     override fun getSyntheticFunctionNames(thisDescriptor: ClassDescriptor): List<Name> = when {
-        thisDescriptor.isCompanionObject && getSerializableClassDescriptorByCompanion(thisDescriptor) != null ->
+        thisDescriptor.isSerializableObject || thisDescriptor.isCompanionObject && getSerializableClassDescriptorByCompanion(thisDescriptor) != null ->
             listOf(SerialEntityNames.SERIALIZER_PROVIDER_NAME)
         else -> emptyList()
     }
@@ -53,7 +61,7 @@ open class SerializationResolveExtension : SyntheticResolveExtension {
     ) {
         if (thisDescriptor.annotations.hasAnnotation(serialInfoFqName) && name == SerialEntityNames.IMPL_NAME)
             result.add(KSerializerDescriptorResolver.addSerialInfoImplClass(thisDescriptor, declarationProvider, ctx))
-        else if (thisDescriptor.isInternalSerializable && name == SerialEntityNames.SERIALIZER_CLASS_NAME &&
+        else if (thisDescriptor.shouldHaveGeneratedSerializer && name == SerialEntityNames.SERIALIZER_CLASS_NAME &&
             result.none { it.name == SerialEntityNames.SERIALIZER_CLASS_NAME }
         )
             result.add(KSerializerDescriptorResolver.addSerializerImplClass(thisDescriptor, declarationProvider, ctx))
@@ -61,12 +69,26 @@ open class SerializationResolveExtension : SyntheticResolveExtension {
     }
 
     override fun getSyntheticCompanionObjectNameIfNeeded(thisDescriptor: ClassDescriptor): Name? =
-        if (thisDescriptor.isInternalSerializable) SpecialNames.DEFAULT_NAME_FOR_COMPANION_OBJECT
+        if (thisDescriptor.shouldHaveGeneratedMethodsInCompanion && !thisDescriptor.isSerializableObject)
+            SpecialNames.DEFAULT_NAME_FOR_COMPANION_OBJECT
         else null
 
     override fun addSyntheticSupertypes(thisDescriptor: ClassDescriptor, supertypes: MutableList<KotlinType>) {
         KSerializerDescriptorResolver.addSerialInfoSuperType(thisDescriptor, supertypes)
         KSerializerDescriptorResolver.addSerializerSupertypes(thisDescriptor, supertypes)
+        KSerializerDescriptorResolver.addSerializerFactorySuperType(thisDescriptor, supertypes)
+    }
+
+    override fun generateSyntheticSecondaryConstructors(
+        thisDescriptor: ClassDescriptor,
+        bindingContext: BindingContext,
+        result: MutableCollection<ClassConstructorDescriptor>
+    ) {
+        if (thisDescriptor.isInternalSerializable) {
+            // do not add synthetic deserialization constructor if .deserialize method is customized
+            if (thisDescriptor.hasCompanionObjectAsSerializer && SerializerCodegen.getSyntheticLoadMember(thisDescriptor.companionObjectDescriptor!!) == null) return
+            result.add(KSerializerDescriptorResolver.createLoadConstructorDescriptor(thisDescriptor, bindingContext))
+        }
     }
 
     override fun generateSyntheticMethods(

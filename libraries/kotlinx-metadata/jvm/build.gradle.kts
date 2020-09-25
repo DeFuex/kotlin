@@ -1,4 +1,5 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 description = "Kotlin JVM metadata manipulation library"
 
@@ -47,9 +48,13 @@ dependencies {
     testRuntime(project(":kotlin-reflect"))
 }
 
+if (deployVersion != null) {
+    publish()
+}
+
 noDefaultJar()
 
-task<ShadowJar>("shadowJar") {
+val shadowJar = tasks.register<ShadowJar>("shadowJar") {
     callGroovy("manifestAttributes", manifest, project)
     manifest.attributes["Implementation-Version"] = version
 
@@ -57,11 +62,12 @@ task<ShadowJar>("shadowJar") {
     exclude("**/*.proto")
     configurations = listOf(shadows)
     relocate("org.jetbrains.kotlin", "kotlinx.metadata.internal")
-
-    val artifactRef = outputs.files.singleFile
-    runtimeJarArtifactBy(this, artifactRef)
-    addArtifact("runtime", this, artifactRef)
 }
+
+runtimeJarArtifactBy(shadowJar, shadowJar)
+
+val test by tasks
+test.dependsOn("shadowJar")
 
 sourcesJar {
     for (dependency in shadows.dependencies) {
@@ -75,8 +81,3 @@ sourcesJar {
 }
 
 javadocJar()
-
-if (deployVersion != null) {
-    publish()
-}
-

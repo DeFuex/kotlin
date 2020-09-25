@@ -1,6 +1,6 @@
 /*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2000-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package kotlinx.metadata
@@ -37,11 +37,7 @@ import org.jetbrains.kotlin.metadata.ProtoBuf.Class.Kind as ClassKind
  * @see Flags
  * @see flagsOf
  */
-class Flag internal constructor(
-    private val offset: Int,
-    private val bitWidth: Int,
-    private val value: Int
-) {
+class Flag(private val offset: Int, private val bitWidth: Int, private val value: Int) {
     internal constructor(field: F.FlagField<*>, value: Int) : this(field.offset, field.bitWidth, value)
 
     internal constructor(field: F.BooleanFlagField) : this(field, 1)
@@ -211,6 +207,12 @@ class Flag internal constructor(
          */
         @JvmField
         val IS_INLINE = Flag(F.IS_INLINE_CLASS)
+
+        /**
+         * Signifies that the corresponding class is a functional interface, i.e. marked with the keyword `fun`.
+         */
+        @JvmField
+        val IS_FUN = Flag(F.IS_FUN_INTERFACE)
     }
 
     /**
@@ -222,6 +224,12 @@ class Flag internal constructor(
          */
         @JvmField
         val IS_PRIMARY = Flag(F.IS_SECONDARY, 0)
+
+        /**
+         * Signifies that the corresponding constructor has non-stable parameter names, i.e. cannot be called with named arguments.
+         */
+        @JvmField
+        val HAS_NON_STABLE_PARAMETER_NAMES = Flag(F.IS_CONSTRUCTOR_WITH_NON_STABLE_PARAMETER_NAMES)
     }
 
     /**
@@ -300,6 +308,12 @@ class Flag internal constructor(
          */
         @JvmField
         val IS_EXPECT = Flag(F.IS_EXPECT_FUNCTION)
+
+        /**
+         * Signifies that the corresponding function has non-stable parameter names, i.e. cannot be called with named arguments.
+         */
+        @JvmField
+        val HAS_NON_STABLE_PARAMETER_NAMES = Flag(F.IS_FUNCTION_WITH_NON_STABLE_PARAMETER_NAMES)
     }
 
     /**

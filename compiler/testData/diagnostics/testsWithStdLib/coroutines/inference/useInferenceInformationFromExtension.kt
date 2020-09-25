@@ -1,4 +1,5 @@
 // !DIAGNOSTICS: -UNUSED_PARAMETER
+// !WITH_NEW_INFERENCE
 
 // FILE: annotation.kt
 
@@ -23,7 +24,7 @@ val normal = generate {
     yield(42)
 }
 
-val extension = <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>generate<!> {
+val extension = <!NI;NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER, OI;TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>generate<!> {
     extensionYield("foo")
 }
 

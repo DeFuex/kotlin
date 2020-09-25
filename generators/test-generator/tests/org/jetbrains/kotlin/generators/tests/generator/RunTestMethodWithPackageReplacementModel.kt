@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.generators.tests.generator
@@ -11,7 +11,8 @@ import org.jetbrains.kotlin.utils.Printer
 class RunTestMethodWithPackageReplacementModel(
     private val targetBackend: TargetBackend,
     private val testMethodName: String,
-    private val testRunnerMethodName: String
+    private val testRunnerMethodName: String,
+    private val additionalRunnerArguments: List<String>
 ) : MethodModel {
     override val name = METHOD_NAME
     override val dataString: String? = null
@@ -22,7 +23,14 @@ class RunTestMethodWithPackageReplacementModel(
 
     override fun generateBody(p: Printer) {
         val className = TargetBackend::class.java.simpleName
-        p.println("KotlinTestUtils.$testRunnerMethodName(filePath -> $testMethodName(filePath, packageName), $className.$targetBackend, testDataFilePath);")
+        val additionalArguments = if (additionalRunnerArguments.isNotEmpty())
+            additionalRunnerArguments.joinToString(separator = ", ", prefix = ", ")
+        else ""
+        p.println("KotlinTestUtils.$testRunnerMethodName(filePath -> $testMethodName(filePath, packageName), $className.$targetBackend, testDataFilePath$additionalArguments);")
+    }
+
+    override fun imports(): Collection<Class<*>> {
+        return super.imports() + setOf(TargetBackend::class.java)
     }
 
     companion object {

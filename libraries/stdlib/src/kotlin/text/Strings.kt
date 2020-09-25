@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 @file:kotlin.jvm.JvmMultifileClass
@@ -213,6 +213,8 @@ public fun String.padEnd(length: Int, padChar: Char = ' '): String =
 
 /**
  * Returns `true` if this nullable char sequence is either `null` or empty.
+ *
+ * @sample samples.text.Strings.stringIsNullOrEmpty
  */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence?.isNullOrEmpty(): Boolean {
@@ -225,12 +227,16 @@ public inline fun CharSequence?.isNullOrEmpty(): Boolean {
 
 /**
  * Returns `true` if this char sequence is empty (contains no characters).
+ *
+ * @sample samples.text.Strings.stringIsEmpty
  */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.isEmpty(): Boolean = length == 0
 
 /**
  * Returns `true` if this char sequence is not empty.
+ *
+ * @sample samples.text.Strings.stringIsNotEmpty
  */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.isNotEmpty(): Boolean = length > 0
@@ -241,12 +247,16 @@ public inline fun CharSequence.isNotEmpty(): Boolean = length > 0
 
 /**
  * Returns `true` if this char sequence is not empty and contains some characters except of whitespace characters.
+ *
+ * @sample samples.text.Strings.stringIsNotBlank
  */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence.isNotBlank(): Boolean = !isBlank()
 
 /**
  * Returns `true` if this nullable char sequence is either `null` or empty or consists solely of whitespace characters.
+ *
+ * @sample samples.text.Strings.stringIsNullOrBlank
  */
 @kotlin.internal.InlineOnly
 public inline fun CharSequence?.isNullOrBlank(): Boolean {
@@ -428,13 +438,14 @@ public fun String.substringAfterLast(delimiter: String, missingDelimiterValue: S
  * @param startIndex the index of the first character to be replaced.
  * @param endIndex the index of the first character after the replacement to keep in the string.
  */
+@OptIn(ExperimentalStdlibApi::class)
 public fun CharSequence.replaceRange(startIndex: Int, endIndex: Int, replacement: CharSequence): CharSequence {
     if (endIndex < startIndex)
         throw IndexOutOfBoundsException("End index ($endIndex) is less than start index ($startIndex).")
     val sb = StringBuilder()
-    sb.append(this, 0, startIndex)
+    sb.appendRange(this, 0, startIndex)
     sb.append(replacement)
-    sb.append(this, endIndex, length)
+    sb.appendRange(this, endIndex, length)
     return sb
 }
 
@@ -473,6 +484,7 @@ public inline fun String.replaceRange(range: IntRange, replacement: CharSequence
  *
  * [endIndex] is not included in the removed part.
  */
+@OptIn(ExperimentalStdlibApi::class)
 public fun CharSequence.removeRange(startIndex: Int, endIndex: Int): CharSequence {
     if (endIndex < startIndex)
         throw IndexOutOfBoundsException("End index ($endIndex) is less than start index ($startIndex).")
@@ -481,8 +493,8 @@ public fun CharSequence.removeRange(startIndex: Int, endIndex: Int): CharSequenc
         return this.subSequence(0, length)
 
     val sb = StringBuilder(length - (endIndex - startIndex))
-    sb.append(this, 0, startIndex)
-    sb.append(this, endIndex, length)
+    sb.appendRange(this, 0, startIndex)
+    sb.appendRange(this, endIndex, length)
     return sb
 }
 
@@ -988,6 +1000,7 @@ public fun CharSequence.indexOf(char: Char, startIndex: Int = 0, ignoreCase: Boo
  *
  * @param ignoreCase `true` to ignore character case when matching a string. By default `false`.
  * @return An index of the first occurrence of [string] or `-1` if none is found.
+ * @sample samples.text.Strings.indexOf
  */
 public fun CharSequence.indexOf(string: String, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
     return if (ignoreCase || this !is String)
@@ -1002,7 +1015,7 @@ public fun CharSequence.indexOf(string: String, startIndex: Int = 0, ignoreCase:
  *
  * @param startIndex The index of character to start searching at. The search proceeds backward toward the beginning of the string.
  * @param ignoreCase `true` to ignore character case when matching a character. By default `false`.
- * @return An index of the first occurrence of [char] or -1 if none is found.
+ * @return An index of the last occurrence of [char] or -1 if none is found.
  */
 public fun CharSequence.lastIndexOf(char: Char, startIndex: Int = lastIndex, ignoreCase: Boolean = false): Int {
     return if (ignoreCase || this !is String)
@@ -1017,7 +1030,7 @@ public fun CharSequence.lastIndexOf(char: Char, startIndex: Int = lastIndex, ign
  *
  * @param startIndex The index of character to start searching at. The search proceeds backward toward the beginning of the string.
  * @param ignoreCase `true` to ignore character case when matching a string. By default `false`.
- * @return An index of the first occurrence of [string] or -1 if none is found.
+ * @return An index of the last occurrence of [string] or -1 if none is found.
  */
 public fun CharSequence.lastIndexOf(string: String, startIndex: Int = lastIndex, ignoreCase: Boolean = false): Int {
     return if (ignoreCase || this !is String)

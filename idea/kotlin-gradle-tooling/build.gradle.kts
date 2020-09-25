@@ -1,4 +1,3 @@
-
 description = "Kotlin Gradle Tooling support"
 
 plugins {
@@ -10,9 +9,12 @@ jvmTarget = "1.6"
 
 dependencies {
     compile(kotlinStdlib())
-    compile(project(":compiler:cli-common"))
-    compile(intellijPluginDep("gradle"))
+
+    compileOnly(intellijPluginDep("gradle"))
     compileOnly(intellijDep()) { includeJars("slf4j-api-1.7.25") }
+    Platform[193].orLower {
+        compile(project(":idea:idea-gradle-tooling-api"))
+    }
 }
 
 sourceSets {
@@ -22,4 +24,8 @@ sourceSets {
 
 runtimeJar()
 
-ideaPlugin()
+sourcesJar()
+
+javadocJar()
+
+apply(from = "$rootDir/gradle/kotlinPluginPublication.gradle.kts")

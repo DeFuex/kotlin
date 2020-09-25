@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.multiplatform;
@@ -8,7 +8,6 @@ package org.jetbrains.kotlin.multiplatform;
 import com.intellij.testFramework.TestDataPath;
 import org.jetbrains.kotlin.test.JUnit3RunnerWithInners;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
-import org.jetbrains.kotlin.test.TargetBackend;
 import org.jetbrains.kotlin.test.TestMetadata;
 import org.junit.runner.RunWith;
 
@@ -22,11 +21,11 @@ import java.util.regex.Pattern;
 @RunWith(JUnit3RunnerWithInners.class)
 public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatformIntegrationTest {
     private void runTest(String testDataFilePath) throws Exception {
-        KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+        KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
     }
 
     public void testAllFilesPresentInMultiplatform() throws Exception {
-        KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+        KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform"), Pattern.compile("^([^\\.]+)$"), null, true);
     }
 
     @TestMetadata("compatibleProperties")
@@ -52,6 +51,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @TestMetadata("explicitActualOnOverrideOfAbstractMethod")
     public void testExplicitActualOnOverrideOfAbstractMethod() throws Exception {
         runTest("compiler/testData/multiplatform/explicitActualOnOverrideOfAbstractMethod/");
+    }
+
+    @TestMetadata("funInterfaces")
+    public void testFunInterfaces() throws Exception {
+        runTest("compiler/testData/multiplatform/funInterfaces/");
     }
 
     @TestMetadata("genericDeclarations")
@@ -144,11 +148,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class ClassScopes extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInClassScopes() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
 
         @TestMetadata("constructorIncorrectSignature")
@@ -201,11 +205,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class ConstructorIncorrectSignature extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInConstructorIncorrectSignature() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/constructorIncorrectSignature"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/constructorIncorrectSignature"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -214,11 +218,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class EnumsWithDifferentEntries extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInEnumsWithDifferentEntries() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/enumsWithDifferentEntries"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/enumsWithDifferentEntries"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -227,11 +231,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class FakeOverrides extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInFakeOverrides() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/fakeOverrides"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/fakeOverrides"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -240,11 +244,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class FunctionAndPropertyWithSameName extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInFunctionAndPropertyWithSameName() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/functionAndPropertyWithSameName"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/functionAndPropertyWithSameName"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -253,11 +257,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class FunctionIncorrectSignature extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInFunctionIncorrectSignature() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/functionIncorrectSignature"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/functionIncorrectSignature"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -266,11 +270,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class FunctionIncorrectSignatureFromSuperclass extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInFunctionIncorrectSignatureFromSuperclass() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/functionIncorrectSignatureFromSuperclass"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/functionIncorrectSignatureFromSuperclass"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -279,11 +283,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class MissingConstructor extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInMissingConstructor() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/missingConstructor"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/missingConstructor"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -292,11 +296,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class MissingFunction extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInMissingFunction() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/missingFunction"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/missingFunction"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -305,11 +309,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class Simple extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInSimple() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/classScopes/simple"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/classScopes/simple"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
     }
@@ -319,11 +323,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class CompatibleProperties extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInCompatibleProperties() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/compatibleProperties"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/compatibleProperties"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -332,11 +336,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class CompilerArguments extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInCompilerArguments() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/compilerArguments"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/compilerArguments"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -345,11 +349,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class Contracts extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInContracts() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/contracts"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/contracts"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -358,11 +362,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class CreateImplClassInPlatformModule extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInCreateImplClassInPlatformModule() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/createImplClassInPlatformModule"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/createImplClassInPlatformModule"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -371,11 +375,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class DefaultArguments extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInDefaultArguments() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/defaultArguments"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/defaultArguments"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
 
         @TestMetadata("useDefaultArgumentsInDependency")
@@ -388,11 +392,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class UseDefaultArgumentsInDependency extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInUseDefaultArgumentsInDependency() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/defaultArguments/useDefaultArgumentsInDependency"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/defaultArguments/useDefaultArgumentsInDependency"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
     }
@@ -402,11 +406,24 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class ExplicitActualOnOverrideOfAbstractMethod extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInExplicitActualOnOverrideOfAbstractMethod() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/explicitActualOnOverrideOfAbstractMethod"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/explicitActualOnOverrideOfAbstractMethod"), Pattern.compile("^([^\\.]+)$"), null, true);
+        }
+    }
+
+    @TestMetadata("compiler/testData/multiplatform/funInterfaces")
+    @TestDataPath("$PROJECT_ROOT")
+    @RunWith(JUnit3RunnerWithInners.class)
+    public static class FunInterfaces extends AbstractMultiPlatformIntegrationTest {
+        private void runTest(String testDataFilePath) throws Exception {
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
+        }
+
+        public void testAllFilesPresentInFunInterfaces() throws Exception {
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/funInterfaces"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -415,11 +432,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class GenericDeclarations extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInGenericDeclarations() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/genericDeclarations"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/genericDeclarations"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -428,11 +445,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class ImplTypeAlias extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInImplTypeAlias() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/implTypeAlias"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/implTypeAlias"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
 
         @TestMetadata("discriminateHeaderClassInFavorOfTypeAlias")
@@ -455,11 +472,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class DiscriminateHeaderClassInFavorOfTypeAlias extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInDiscriminateHeaderClassInFavorOfTypeAlias() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/implTypeAlias/discriminateHeaderClassInFavorOfTypeAlias"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/implTypeAlias/discriminateHeaderClassInFavorOfTypeAlias"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -468,11 +485,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class Generic extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInGeneric() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/implTypeAlias/generic"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/implTypeAlias/generic"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -481,11 +498,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class NestedClassesViaTypeAlias extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInNestedClassesViaTypeAlias() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/implTypeAlias/nestedClassesViaTypeAlias"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/implTypeAlias/nestedClassesViaTypeAlias"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
     }
@@ -495,11 +512,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class IncompatibleCallables extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInIncompatibleCallables() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/incompatibleCallables"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/incompatibleCallables"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -508,11 +525,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class IncompatibleClasses extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInIncompatibleClasses() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/incompatibleClasses"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/incompatibleClasses"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -521,11 +538,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class IncompatibleFunctions extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInIncompatibleFunctions() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/incompatibleFunctions"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/incompatibleFunctions"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -534,11 +551,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class IncompatibleNestedClasses extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInIncompatibleNestedClasses() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/incompatibleNestedClasses"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/incompatibleNestedClasses"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -547,11 +564,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class IncompatibleProperties extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInIncompatibleProperties() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/incompatibleProperties"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/incompatibleProperties"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -560,11 +577,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class IncorrectImplInClass extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInIncorrectImplInClass() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/incorrectImplInClass"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/incorrectImplInClass"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -573,11 +590,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class InlineClasses extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInInlineClasses() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/inlineClasses"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/inlineClasses"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -586,11 +603,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class InnerGenericClass extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInInnerGenericClass() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/innerGenericClass"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/innerGenericClass"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -599,11 +616,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class JsNameClash extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInJsNameClash() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/jsNameClash"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/jsNameClash"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -612,11 +629,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class JvmMultifileClass extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInJvmMultifileClass() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/jvmMultifileClass"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/jvmMultifileClass"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -625,11 +642,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class MissingOverload extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInMissingOverload() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/missingOverload"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/missingOverload"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -638,11 +655,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class OptionalExpectation extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInOptionalExpectation() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/optionalExpectation"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/optionalExpectation"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -651,11 +668,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class OptionalExpectationIncorrectUse extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInOptionalExpectationIncorrectUse() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/optionalExpectationIncorrectUse"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/optionalExpectationIncorrectUse"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -664,11 +681,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class Regressions extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInRegressions() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/regressions"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/regressions"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
 
         @TestMetadata("incompatibleClassScopesWithImplTypeAlias")
@@ -691,11 +708,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class IncompatibleClassScopesWithImplTypeAlias extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInIncompatibleClassScopesWithImplTypeAlias() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/regressions/incompatibleClassScopesWithImplTypeAlias"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/regressions/incompatibleClassScopesWithImplTypeAlias"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -704,11 +721,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class Kt17001 extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInKt17001() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/regressions/kt17001"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/regressions/kt17001"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
 
@@ -717,11 +734,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
         @RunWith(JUnit3RunnerWithInners.class)
         public static class Kt28385 extends AbstractMultiPlatformIntegrationTest {
             private void runTest(String testDataFilePath) throws Exception {
-                KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
             }
 
             public void testAllFilesPresentInKt28385() throws Exception {
-                KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/regressions/kt28385"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/regressions/kt28385"), Pattern.compile("^([^\\.]+)$"), null, true);
             }
         }
     }
@@ -731,11 +748,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class Simple extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInSimple() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/simple"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/simple"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -744,11 +761,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class SimpleNoImplKeywordOnTopLevelFunction extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInSimpleNoImplKeywordOnTopLevelFunction() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/simpleNoImplKeywordOnTopLevelFunction"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/simpleNoImplKeywordOnTopLevelFunction"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 
@@ -757,11 +774,11 @@ public class MultiPlatformIntegrationTestGenerated extends AbstractMultiPlatform
     @RunWith(JUnit3RunnerWithInners.class)
     public static class WeakIncompatibilityWithoutActualModifier extends AbstractMultiPlatformIntegrationTest {
         private void runTest(String testDataFilePath) throws Exception {
-            KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+            KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
         }
 
         public void testAllFilesPresentInWeakIncompatibilityWithoutActualModifier() throws Exception {
-            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/multiplatform/weakIncompatibilityWithoutActualModifier"), Pattern.compile("^([^\\.]+)$"), TargetBackend.ANY, true);
+            KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/multiplatform/weakIncompatibilityWithoutActualModifier"), Pattern.compile("^([^\\.]+)$"), null, true);
         }
     }
 }

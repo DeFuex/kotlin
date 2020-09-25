@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 @file:JvmMultifileClass
@@ -14,9 +14,14 @@ import java.io.IOException
 /**
  * Creates an empty directory in the specified [directory], using the given [prefix] and [suffix] to generate its name.
  *
- * If [prefix] is not specified then some unspecified name will be used.
+ * If [prefix] is not specified then some unspecified string will be used.
  * If [suffix] is not specified then ".tmp" will be used.
  * If [directory] is not specified then the default temporary-file directory will be used.
+ *
+ * The [prefix] argument, if specified, must be at least three characters long.
+ * It is recommended that the prefix be a short, meaningful string such as "job" or "mail".
+ *
+ * To create the new file, the [prefix] and the [suffix] may first be adjusted to fit the limitations of the underlying platform.
  *
  * @return a file object corresponding to a newly-created directory.
  *
@@ -36,9 +41,14 @@ public fun createTempDir(prefix: String = "tmp", suffix: String? = null, directo
 /**
  * Creates a new empty file in the specified [directory], using the given [prefix] and [suffix] to generate its name.
  *
- * If [prefix] is not specified then some unspecified name will be used.
+ * If [prefix] is not specified then some unspecified string will be used.
  * If [suffix] is not specified then ".tmp" will be used.
  * If [directory] is not specified then the default temporary-file directory will be used.
+ *
+ * The [prefix] argument, if specified, must be at least three characters long.
+ * It is recommended that the prefix be a short, meaningful string such as "job" or "mail".
+ *
+ * To create the new file, the [prefix] and the [suffix] may first be adjusted to fit the limitations of the underlying platform.
  *
  * @return a file object corresponding to a newly-created file.
  *
@@ -184,15 +194,10 @@ public fun File.copyTo(target: File, overwrite: Boolean = false, bufferSize: Int
     }
 
     if (target.exists()) {
-        val stillExists = if (!overwrite) true else !target.delete()
-
-        if (stillExists) {
-            throw FileAlreadyExistsException(
-                file = this,
-                other = target,
-                reason = "The destination file already exists."
-            )
-        }
+        if (!overwrite)
+            throw FileAlreadyExistsException(file = this, other = target, reason = "The destination file already exists.")
+        else if (!target.delete())
+            throw FileAlreadyExistsException(file = this, other = target, reason = "Tried to overwrite the destination, but failed to delete it.")
     }
 
     if (this.isDirectory) {

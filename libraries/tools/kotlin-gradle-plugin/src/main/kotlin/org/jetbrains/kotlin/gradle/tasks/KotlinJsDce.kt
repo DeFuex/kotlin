@@ -25,15 +25,16 @@ import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 import org.jetbrains.kotlin.cli.common.arguments.K2JSDceArguments
 import org.jetbrains.kotlin.cli.js.dce.K2JSDce
-import org.jetbrains.kotlin.gradle.logging.GradleKotlinLogger
 import org.jetbrains.kotlin.compilerRunner.runToolInSeparateProcess
 import org.jetbrains.kotlin.gradle.dsl.KotlinJsDce
 import org.jetbrains.kotlin.gradle.dsl.KotlinJsDceOptions
 import org.jetbrains.kotlin.gradle.dsl.KotlinJsDceOptionsImpl
+import org.jetbrains.kotlin.gradle.logging.GradleKotlinLogger
+import org.jetbrains.kotlin.gradle.utils.canonicalPathWithoutExtension
 import java.io.File
 
 @CacheableTask
- open class KotlinJsDce : AbstractKotlinCompileTool<K2JSDceArguments>(), KotlinJsDce {
+open class KotlinJsDce : AbstractKotlinCompileTool<K2JSDceArguments>(), KotlinJsDce {
 
     init {
         cacheOnlyIfEnabledForKotlin()
@@ -43,12 +44,16 @@ import java.io.File
 
     override fun createCompilerArgs(): K2JSDceArguments = K2JSDceArguments()
 
-    override fun setupCompilerArgs(args: K2JSDceArguments, defaultsOnly: Boolean) {
+    override fun setupCompilerArgs(args: K2JSDceArguments, defaultsOnly: Boolean, ignoreClasspathResolutionErrors: Boolean) {
         dceOptionsImpl.updateArguments(args)
         args.declarationsToKeep = keep.toTypedArray()
     }
 
     private val dceOptionsImpl = KotlinJsDceOptionsImpl()
+
+    // DCE can be broken in case of non-kotlin js files or modules
+    @Internal
+    var kotlinFilesOnly: Boolean = false
 
     @get:Internal
     override val dceOptions: KotlinJsDceOptions
@@ -59,15 +64,15 @@ import java.io.File
 
     override fun findKotlinCompilerClasspath(project: Project): List<File> = findKotlinJsDceClasspath(project)
 
-    override fun compile() {}
-
     override fun keep(vararg fqn: String) {
         keep += fqn
     }
 
     @TaskAction
     fun performDce() {
-        val inputFiles = (listOf(getSource()) + classpath.map { project.fileTree(it) })
+        val inputFiles = (listOf(source) + classpath
+            .filter { !kotlinFilesOnly || isDceCandidate(it) }
+            .map { project.fileTree(it) })
             .reduce(FileTree::plus)
             .files.map { it.path }
 
@@ -77,10 +82,27 @@ import java.io.File
 
         val log = GradleKotlinLogger(logger)
         val allArgs = argsArray + outputDirArgs + inputFiles
+
         val exitCode = runToolInSeparateProcess(
-            allArgs, K2JSDce::class.java.name, computedCompilerClasspath,
-            log
+            allArgs,
+            K2JSDce::class.java.name,
+            computedCompilerClasspath,
+            log,
+            project.buildDir
         )
         throwGradleExceptionIfError(exitCode)
+
+    }
+
+    private fun isDceCandidate(file: File): Boolean {
+        if (file.extension == "jar") {
+            return true
+        }
+
+        if (file.extension != "js" || file.name.endsWith(".meta.js")) {
+            return false
+        }
+
+        return File("${file.canonicalPathWithoutExtension()}.meta.js").exists()
     }
 }

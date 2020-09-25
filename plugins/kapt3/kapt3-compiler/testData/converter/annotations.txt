@@ -101,7 +101,7 @@ import java.lang.System;
 public final class TestAnno2 {
     @org.jetbrains.annotations.NotNull()
     @Anno3(value = "field")
-    private java.lang.String b;
+    private java.lang.String b = "property initializer";
 
     @Anno1()
     public final void a(@org.jetbrains.annotations.NotNull()
@@ -110,7 +110,8 @@ public final class TestAnno2 {
     }
 
     @Anno3(value = "property")
-    public static void b$annotations() {
+    @java.lang.Deprecated()
+    public static void getB$annotations() {
     }
 
     @org.jetbrains.annotations.NotNull()

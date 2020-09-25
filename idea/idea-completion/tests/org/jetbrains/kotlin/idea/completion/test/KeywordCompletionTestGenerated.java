@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.completion.test;
@@ -8,7 +8,6 @@ package org.jetbrains.kotlin.idea.completion.test;
 import com.intellij.testFramework.TestDataPath;
 import org.jetbrains.kotlin.test.JUnit3RunnerWithInners;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
-import org.jetbrains.kotlin.test.TargetBackend;
 import org.jetbrains.kotlin.test.TestMetadata;
 import org.junit.runner.RunWith;
 
@@ -22,7 +21,12 @@ import java.util.regex.Pattern;
 @RunWith(JUnit3RunnerWithInners.class)
 public class KeywordCompletionTestGenerated extends AbstractKeywordCompletionTest {
     private void runTest(String testDataFilePath) throws Exception {
-        KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+        KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
+    }
+
+    @TestMetadata("AfterClassName.kt")
+    public void testAfterClassName() throws Exception {
+        runTest("idea/idea-completion/testData/keywords/AfterClassName.kt");
     }
 
     @TestMetadata("AfterClassProperty.kt")
@@ -91,7 +95,7 @@ public class KeywordCompletionTestGenerated extends AbstractKeywordCompletionTes
     }
 
     public void testAllFilesPresentInKeywords() throws Exception {
-        KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("idea/idea-completion/testData/keywords"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, false);
+        KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("idea/idea-completion/testData/keywords"), Pattern.compile("^(.+)\\.kt$"), null, false);
     }
 
     @TestMetadata("BeforeClass.kt")
@@ -142,6 +146,11 @@ public class KeywordCompletionTestGenerated extends AbstractKeywordCompletionTes
     @TestMetadata("FileKeyword.kt")
     public void testFileKeyword() throws Exception {
         runTest("idea/idea-completion/testData/keywords/FileKeyword.kt");
+    }
+
+    @TestMetadata("FixingLayoutAndReturn.kt")
+    public void testFixingLayoutAndReturn() throws Exception {
+        runTest("idea/idea-completion/testData/keywords/FixingLayoutAndReturn.kt");
     }
 
     @TestMetadata("GlobalPropertyAccessors.kt")
@@ -492,6 +501,11 @@ public class KeywordCompletionTestGenerated extends AbstractKeywordCompletionTes
     @TestMetadata("ReturnSet.kt")
     public void testReturnSet() throws Exception {
         runTest("idea/idea-completion/testData/keywords/ReturnSet.kt");
+    }
+
+    @TestMetadata("SuspendInParameterTypePosition.kt")
+    public void testSuspendInParameterTypePosition() throws Exception {
+        runTest("idea/idea-completion/testData/keywords/SuspendInParameterTypePosition.kt");
     }
 
     @TestMetadata("SuspendInsideTypeArguments.kt")

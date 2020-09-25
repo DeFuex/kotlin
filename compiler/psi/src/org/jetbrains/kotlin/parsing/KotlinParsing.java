@@ -51,9 +51,15 @@ public class KotlinParsing extends AbstractKotlinParsing {
     private static final TokenSet TYPE_REF_FIRST = TokenSet.create(LBRACKET, IDENTIFIER, LPAR, HASH, DYNAMIC_KEYWORD);
     private static final TokenSet RECEIVER_TYPE_TERMINATORS = TokenSet.create(DOT, SAFE_ACCESS);
     private static final TokenSet VALUE_PARAMETER_FIRST =
-            TokenSet.orSet(TokenSet.create(IDENTIFIER, LBRACKET, VAL_KEYWORD, VAR_KEYWORD), MODIFIER_KEYWORDS);
+            TokenSet.orSet(
+                    TokenSet.create(IDENTIFIER, LBRACKET, VAL_KEYWORD, VAR_KEYWORD),
+                    TokenSet.andNot(MODIFIER_KEYWORDS, TokenSet.create(FUN_KEYWORD))
+            );
     private static final TokenSet LAMBDA_VALUE_PARAMETER_FIRST =
-            TokenSet.orSet(TokenSet.create(IDENTIFIER, LBRACKET), MODIFIER_KEYWORDS);
+            TokenSet.orSet(
+                    TokenSet.create(IDENTIFIER, LBRACKET),
+                    TokenSet.andNot(MODIFIER_KEYWORDS, TokenSet.create(FUN_KEYWORD))
+            );
     private static final TokenSet SOFT_KEYWORDS_AT_MEMBER_START = TokenSet.create(CONSTRUCTOR_KEYWORD, INIT_KEYWORD);
     private static final TokenSet ANNOTATION_TARGETS = TokenSet.create(
             FILE_KEYWORD, FIELD_KEYWORD, GET_KEYWORD, SET_KEYWORD, PROPERTY_KEYWORD,
@@ -160,6 +166,10 @@ public class KotlinParsing extends AbstractKotlinParsing {
 
     void parseLambdaExpression() {
         myExpressionParsing.parseFunctionLiteral(/* preferBlock = */ false, /* collapse = */false);
+    }
+
+    void parseBlockExpression() {
+        parseBlock(/* collapse = */ false);
     }
 
     void parseScript() {
@@ -505,24 +515,36 @@ public class KotlinParsing extends AbstractKotlinParsing {
     }
 
     private boolean parseTypeModifierList() {
-        return doParseModifierList(null, TYPE_MODIFIER_KEYWORDS, DEFAULT, TokenSet.EMPTY);
+        return doParseModifierList(null, TYPE_MODIFIER_KEYWORDS, TYPE_CONTEXT, TokenSet.EMPTY);
     }
 
     private boolean parseTypeArgumentModifierList() {
         return doParseModifierList(null, TYPE_ARGUMENT_MODIFIER_KEYWORDS, NO_ANNOTATIONS, TokenSet.create(COMMA, COLON, GT));
     }
 
-    private boolean doParseModifierList(
+    private boolean doParseModifierListBody(
             @Nullable Consumer<IElementType> tokenConsumer,
             @NotNull TokenSet modifierKeywords,
             @NotNull AnnotationParsingMode annotationParsingMode,
             @NotNull TokenSet noModifiersBefore
     ) {
-        PsiBuilder.Marker list = mark();
         boolean empty = true;
+        PsiBuilder.Marker beforeAnnotationMarker;
         while (!eof()) {
             if (at(AT) && annotationParsingMode.allowAnnotations) {
-                parseAnnotationOrList(annotationParsingMode);
+                beforeAnnotationMarker = mark();
+
+                boolean isAnnotationParsed = parseAnnotationOrList(annotationParsingMode);
+
+                if (!isAnnotationParsed && !annotationParsingMode.withSignificantWhitespaceBeforeArguments) {
+                    beforeAnnotationMarker.rollbackTo();
+                    // try parse again, but with significant whitespace
+                    doParseModifierListBody(tokenConsumer, modifierKeywords, WITH_SIGNIFICANT_WHITESPACE_BEFORE_ARGUMENTS, noModifiersBefore);
+                    empty = false;
+                    break;
+                } else {
+                    beforeAnnotationMarker.drop();
+                }
             }
             else if (tryParseModifier(tokenConsumer, noModifiersBefore, modifierKeywords)) {
                 // modifier advanced
@@ -532,6 +554,25 @@ public class KotlinParsing extends AbstractKotlinParsing {
             }
             empty = false;
         }
+
+        return empty;
+    }
+
+    private boolean doParseModifierList(
+            @Nullable Consumer<IElementType> tokenConsumer,
+            @NotNull TokenSet modifierKeywords,
+            @NotNull AnnotationParsingMode annotationParsingMode,
+            @NotNull TokenSet noModifiersBefore
+    ) {
+        PsiBuilder.Marker list = mark();
+
+        boolean empty = doParseModifierListBody(
+                tokenConsumer,
+                modifierKeywords,
+                annotationParsingMode,
+                noModifiersBefore
+        );
+
         if (empty) {
             list.drop();
         }
@@ -550,6 +591,12 @@ public class KotlinParsing extends AbstractKotlinParsing {
 
         if (atSet(modifierKeywords)) {
             IElementType lookahead = lookahead(1);
+
+            if (at(FUN_KEYWORD) && lookahead != INTERFACE_KEYWORD) {
+                marker.rollbackTo();
+                return false;
+            }
+
             if (lookahead != null && !noModifiersBefore.contains(lookahead)) {
                 IElementType tt = tt();
                 if (tokenConsumer != null) {
@@ -792,8 +839,27 @@ public class KotlinParsing extends AbstractKotlinParsing {
 
         parseTypeArgumentList();
 
-        if (at(LPAR)) {
+        boolean whitespaceAfterAnnotation = WHITE_SPACE_OR_COMMENT_BIT_SET.contains(myBuilder.rawLookup(-1));
+        boolean shouldBeParsedNextAsFunctionalType = at(LPAR) && whitespaceAfterAnnotation && mode.withSignificantWhitespaceBeforeArguments;
+
+        if (at(LPAR) && !shouldBeParsedNextAsFunctionalType) {
             myExpressionParsing.parseValueArgumentList();
+
+            /*
+             * There are two problem cases relating to parsing of annotations on a functional type:
+             *  - Annotation on a functional type was parsed correctly with the capture parentheses of the functional type,
+             *      e.g. @Anno () -> Unit
+             *                    ^ Parse error only here: Type expected
+             *  - It wasn't parsed, e.g. @Anno (x: kotlin.Any) -> Unit
+             *                                           ^ Parse error: Expecting ')'
+             *
+             * In both cases, parser should rollback to start parsing of annotation and tries parse it with significant whitespace.
+             * A marker is set here which means that we must to rollback.
+             */
+            if (mode.typeContext && (getLastToken() != RPAR || at(ARROW))) {
+                annotation.done(ANNOTATION_ENTRY);
+                return false;
+            }
         }
         annotation.done(ANNOTATION_ENTRY);
 
@@ -1412,7 +1478,7 @@ public class KotlinParsing extends AbstractKotlinParsing {
                 if (at(COMMA)) {
                     errorAndAdvance("Expecting a name");
                 }
-                else if (at(RPAR)) {
+                else if (at(RPAR)) { // For declaration similar to `val () = somethingCall()`
                     error("Expecting a name");
                     break;
                 }
@@ -1430,6 +1496,7 @@ public class KotlinParsing extends AbstractKotlinParsing {
 
                 if (!at(COMMA)) break;
                 advance(); // COMMA
+                if (at(RPAR)) break;
             }
         }
 
@@ -1495,10 +1562,13 @@ public class KotlinParsing extends AbstractKotlinParsing {
             expect(IDENTIFIER, "Expecting parameter name", TokenSet.create(RPAR, COLON, LBRACE, EQ));
 
             if (at(COLON)) {
-                advance();  // COLON
+                advance(); // COLON
                 parseTypeRef();
             }
             setterParameter.done(VALUE_PARAMETER);
+            if (at(COMMA)) {
+                advance(); // COMMA
+            }
             parameterList.done(VALUE_PARAMETER_LIST);
         }
         if (!at(RPAR)) {
@@ -1514,6 +1584,8 @@ public class KotlinParsing extends AbstractKotlinParsing {
 
             parseTypeRef();
         }
+
+        parseFunctionContract();
 
         parseFunctionBody();
 
@@ -1576,10 +1648,10 @@ public class KotlinParsing extends AbstractKotlinParsing {
             PsiBuilder.Marker error = mark();
             parseTypeParameterList(TokenSet.orSet(TokenSet.create(LPAR), valueParametersFollow));
             if (typeParameterListOccurred) {
-                int offset = myBuilder.getCurrentOffset();
+                int finishIndex = myBuilder.rawTokenIndex();
                 error.rollbackTo();
                 error = mark();
-                advance(offset - myBuilder.getCurrentOffset());
+                advance(finishIndex - myBuilder.rawTokenIndex());
                 error.error("Only one type parameter list is allowed for a function");
             }
             else {
@@ -1601,7 +1673,13 @@ public class KotlinParsing extends AbstractKotlinParsing {
             parseTypeRef();
         }
 
+        boolean functionContractOccurred = parseFunctionContract();
+
         parseTypeConstraintsGuarded(typeParameterListOccurred);
+
+        if (!functionContractOccurred) {
+            parseFunctionContract();
+        }
 
         if (at(SEMICOLON)) {
             advance(); // SEMICOLON
@@ -1725,17 +1803,53 @@ public class KotlinParsing extends AbstractKotlinParsing {
      *   ;
      */
     void parseBlock() {
-        PsiBuilder.Marker block = mark();
+        parseBlock(/*collapse*/ true);
+    }
+
+    private void parseBlock(boolean collapse) {
+
+        PsiBuilder.Marker lazyBlock = mark();
 
         myBuilder.enableNewlines();
-        expect(LBRACE, "Expecting '{' to open a block");
 
-        myExpressionParsing.parseStatements();
+        boolean hasOpeningBrace = expect(LBRACE, "Expecting '{' to open a block");
+        boolean canCollapse = collapse && hasOpeningBrace;
 
-        expect(RBRACE, "Expecting '}'");
+        if (canCollapse) {
+            advanceBalancedBlock();
+        }
+        else {
+            myExpressionParsing.parseStatements();
+            expect(RBRACE, "Expecting '}'");
+        }
+
         myBuilder.restoreNewlinesState();
 
-        block.done(BLOCK);
+        if (canCollapse) {
+            lazyBlock.collapse(BLOCK);
+        }
+        else {
+            lazyBlock.done(BLOCK);
+        }
+    }
+
+    public void advanceBalancedBlock() {
+
+        int braceCount = 1;
+        while (!eof()) {
+            if (_at(LBRACE)) {
+                braceCount++;
+            }
+            else if (_at(RBRACE)) {
+                braceCount--;
+            }
+
+            advance();
+
+            if (braceCount == 0) {
+                break;
+            }
+        }
     }
 
     /*
@@ -1809,6 +1923,9 @@ public class KotlinParsing extends AbstractKotlinParsing {
 
                 if (!at(COMMA)) break;
                 advance(); // COMMA
+                if (at(GT)) {
+                    break;
+                }
             }
 
             expect(GT, "Missing '>'", recoverySet);
@@ -1882,6 +1999,14 @@ public class KotlinParsing extends AbstractKotlinParsing {
         parseTypeRef();
 
         constraint.done(TYPE_CONSTRAINT);
+    }
+
+    private boolean parseFunctionContract() {
+        if (at(CONTRACT_KEYWORD)) {
+            myExpressionParsing.parseContractDescriptionBlock();
+            return true;
+        }
+        return false;
     }
 
     /*
@@ -1958,7 +2083,7 @@ public class KotlinParsing extends AbstractKotlinParsing {
         else if (at(LPAR)) {
             PsiBuilder.Marker functionOrParenthesizedType = mark();
 
-            // This may be a function parameter list or just a prenthesized type
+            // This may be a function parameter list or just a parenthesized type
             advance(); // LPAR
             parseTypeRefContents(TokenSet.EMPTY).drop(); // parenthesized types, no reference element around it is needed
 
@@ -2176,6 +2301,9 @@ public class KotlinParsing extends AbstractKotlinParsing {
             projection.done(TYPE_PROJECTION);
             if (!at(COMMA)) break;
             advance(); // COMMA
+            if (at(GT)) {
+                break;
+            }
         }
 
         boolean atGT = at(GT);
@@ -2238,7 +2366,6 @@ public class KotlinParsing extends AbstractKotlinParsing {
                     errorAndAdvance("Expecting a parameter declaration");
                 }
                 else if (at(RPAR)) {
-                    error("Expecting a parameter declaration");
                     break;
                 }
 
@@ -2386,20 +2513,28 @@ public class KotlinParsing extends AbstractKotlinParsing {
     }
 
     enum AnnotationParsingMode {
-        DEFAULT(false, true),
-        FILE_ANNOTATIONS_BEFORE_PACKAGE(true, true),
-        FILE_ANNOTATIONS_WHEN_PACKAGE_OMITTED(true, true),
-        NO_ANNOTATIONS(false, false);
+        DEFAULT(false, true, false, false),
+        FILE_ANNOTATIONS_BEFORE_PACKAGE(true, true, false, false),
+        FILE_ANNOTATIONS_WHEN_PACKAGE_OMITTED(true, true, false, false),
+        TYPE_CONTEXT(false, true, true, false),
+        WITH_SIGNIFICANT_WHITESPACE_BEFORE_ARGUMENTS(false, true, true, true),
+        NO_ANNOTATIONS(false, false, false, false);
 
         boolean isFileAnnotationParsingMode;
         boolean allowAnnotations;
+        boolean withSignificantWhitespaceBeforeArguments;
+        boolean typeContext;
 
         AnnotationParsingMode(
                 boolean isFileAnnotationParsingMode,
-                boolean allowAnnotations
+                boolean allowAnnotations,
+                boolean typeContext,
+                boolean withSignificantWhitespaceBeforeArguments
         ) {
             this.isFileAnnotationParsingMode = isFileAnnotationParsingMode;
             this.allowAnnotations = allowAnnotations;
+            this.typeContext = typeContext;
+            this.withSignificantWhitespaceBeforeArguments = withSignificantWhitespaceBeforeArguments;
         }
     }
 }

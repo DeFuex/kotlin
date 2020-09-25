@@ -42,6 +42,7 @@ public abstract class AbstractTypeParameterDescriptor extends DeclarationDescrip
 
     private final NotNullLazyValue<TypeConstructor> typeConstructor;
     private final NotNullLazyValue<SimpleType> defaultType;
+    private final StorageManager storageManager;
 
     protected AbstractTypeParameterDescriptor(
             @NotNull final StorageManager storageManager,
@@ -71,17 +72,18 @@ public abstract class AbstractTypeParameterDescriptor extends DeclarationDescrip
                 return KotlinTypeFactory.simpleTypeWithNonTrivialMemberScope(
                         Annotations.Companion.getEMPTY(),
                         getTypeConstructor(), Collections.<TypeProjection>emptyList(), false,
-                        new LazyScopeAdapter(storageManager.createLazyValue(
+                        new LazyScopeAdapter(
                                 new Function0<MemberScope>() {
                                     @Override
                                     public MemberScope invoke() {
                                         return TypeIntersectionScope.create("Scope for type parameter " + name.asString(), getUpperBounds());
                                     }
                                 }
-                        ))
+                        )
                 );
             }
         });
+        this.storageManager = storageManager;
     }
 
     protected abstract void reportSupertypeLoopError(@NotNull KotlinType type);
@@ -137,6 +139,12 @@ public abstract class AbstractTypeParameterDescriptor extends DeclarationDescrip
     @Override
     public <R, D> R accept(DeclarationDescriptorVisitor<R, D> visitor, D data) {
         return visitor.visitTypeParameterDescriptor(this, data);
+    }
+
+    @NotNull
+    @Override
+    public StorageManager getStorageManager() {
+        return storageManager;
     }
 
     private class TypeParameterTypeConstructor extends AbstractTypeConstructor {

@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.generators.util
@@ -52,9 +52,10 @@ fun createCommonCoroutinesTestMethodModels(
     filenamePattern: Pattern,
     checkFilenameStartsLowerCase: Boolean?,
     targetBackend: TargetBackend,
-    skipIgnored: Boolean
+    skipIgnored: Boolean,
+    skipExperimental: Boolean
 ): Collection<MethodModel> {
-    return if (targetBackend == TargetBackend.JS_IR)
+    return if (targetBackend.isIR || targetBackend == TargetBackend.JS)
         listOf(
             CoroutinesTestModel(
                 rootDir,
@@ -66,8 +67,8 @@ fun createCommonCoroutinesTestMethodModels(
                 true
             )
         )
-    else
-        listOf(
+    else {
+        mutableListOf(
             CoroutinesTestModel(
                 rootDir,
                 file,
@@ -76,15 +77,20 @@ fun createCommonCoroutinesTestMethodModels(
                 targetBackend,
                 skipIgnored,
                 true
-            ),
-            CoroutinesTestModel(
-                rootDir,
-                file,
-                filenamePattern,
-                checkFilenameStartsLowerCase,
-                targetBackend,
-                skipIgnored,
-                false
             )
-        )
+        ).apply {
+            if (!skipExperimental) {
+                this += CoroutinesTestModel(
+                    rootDir,
+                    file,
+                    filenamePattern,
+                    checkFilenameStartsLowerCase,
+                    targetBackend,
+                    skipIgnored,
+                    false
+                )
+
+            }
+        }
+    }
 }

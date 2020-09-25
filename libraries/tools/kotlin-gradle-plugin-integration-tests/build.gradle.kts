@@ -21,8 +21,10 @@ dependencies {
     testCompile(project(":kotlin-noarg"))
     testCompile(project(":kotlin-sam-with-receiver"))
     testCompile(project(":kotlin-test:kotlin-test-jvm"))
+    testCompile(project(":native:kotlin-native-utils"))
 
     testCompile(projectRuntimeJar(":kotlin-compiler-embeddable"))
+    testCompile(intellijCoreDep()) { includeJars("jdom") }
     // testCompileOnly dependency on non-shaded artifacts is needed for IDE support
     // testRuntime on shaded artifact is needed for running tests with shaded compiler
     testCompileOnly(project(path = ":kotlin-gradle-plugin-test-utils-embeddable", configuration = "compile"))
@@ -32,57 +34,71 @@ dependencies {
     testCompile(kotlinStdlib("jdk8"))
     testCompile(project(":kotlin-reflect"))
     testCompile(project(":kotlin-android-extensions"))
+    testCompile(project(":kotlin-parcelize-compiler"))
     testCompile(commonDep("org.jetbrains.intellij.deps", "trove4j"))
 
     testCompile(gradleApi())
 
     testRuntime(projectRuntimeJar(":kotlin-android-extensions"))
+    testRuntime(project(":compiler:tests-mutes"))
 
     // Workaround for missing transitive import of the common(project `kotlin-test-common`
     // for `kotlin-test-jvm` into the IDE:
     testCompileOnly(project(":kotlin-test:kotlin-test-common")) { isTransitive = false }
 }
 
-val jpsIncrementalTestsClass = "**/KotlinGradlePluginJpsParametrizedIT.class"
+// Aapt2 from Android Gradle Plugin 3.2 and below does not handle long paths on Windows.
+val shortenTempRootName = System.getProperty("os.name")!!.contains("Windows")
 
-projectTest {
-    executable = "${rootProject.extra["JDK_18"]!!}/bin/java"
-    dependsOn(":kotlin-gradle-plugin:validateTaskProperties")
-    dependsOn(
-        ":kotlin-allopen:install",
-        ":kotlin-noarg:install",
-        ":kotlin-sam-with-receiver:install",
-        ":kotlin-android-extensions:install",
-        ":kotlin-build-common:install",
-        ":kotlin-compiler-embeddable:install",
-        ":kotlin-gradle-plugin:install",
-        ":kotlin-reflect:install",
-        ":kotlin-annotation-processing-gradle:install",
-        ":kotlin-test:kotlin-test-jvm:install",
-        ":kotlin-gradle-subplugin-example:install",
-        ":kotlin-stdlib-jdk8:install",
-        ":examples:annotation-processor-example:install",
-        ":kotlin-scripting-common:install",
-        ":kotlin-scripting-jvm:install",
-        ":kotlin-scripting-compiler-embeddable:install"
-    )
-    exclude(jpsIncrementalTestsClass)
+val isTeamcityBuild = project.kotlinBuildProperties.isTeamcityBuild ||
+        try {
+            project.properties["gradle.integration.tests.split.tasks"]?.toString()?.toBoolean() ?: false
+        } catch (_: Exception) { false }
+
+fun Test.includeMppAndAndroid(include: Boolean) {
+    if (isTeamcityBuild) {
+        val mppAndAndroidTestPatterns = listOf("*Multiplatform*", "*Mpp*", "*Android*")
+        val filter = if (include)
+            filter.includePatterns
+        else
+            filter.excludePatterns
+        filter.addAll(mppAndAndroidTestPatterns)
+    }
 }
 
-tasks.register<Test>("testsFromJps") {
-    include(jpsIncrementalTestsClass)
-    dependsOn(tasks.getByName("test").dependsOn)
-}
-
-tasks.register<Test>("testAdvanceGradleVersion") {
-    val gradleVersionForTests = "5.1.1"
+fun Test.advanceGradleVersion() {
+    val gradleVersionForTests = "6.3"
     systemProperty("kotlin.gradle.version.for.tests", gradleVersionForTests)
-    dependsOn(tasks.getByName("test").dependsOn)
-    exclude(jpsIncrementalTestsClass)
+}
+
+// additional configuration in tasks.withType<Test> below
+projectTest("test", shortenTempRootName = shortenTempRootName) {
+    includeMppAndAndroid(false)
+}
+
+projectTest("testAdvanceGradleVersion", shortenTempRootName = shortenTempRootName) {
+    advanceGradleVersion()
+    includeMppAndAndroid(false)
+}
+
+
+if (isTeamcityBuild) {
+    projectTest("testMppAndAndroid", shortenTempRootName = shortenTempRootName) {
+        includeMppAndAndroid(true)
+    }
+
+    projectTest("testAdvanceGradleVersionMppAndAndroid", shortenTempRootName = shortenTempRootName) {
+        advanceGradleVersion()
+        includeMppAndAndroid(true)
+    }
 }
 
 tasks.named<Task>("check") {
     dependsOn("testAdvanceGradleVersion")
+    if (isTeamcityBuild) {
+        dependsOn("testAdvanceGradleVersionMppAndAndroid")
+        dependsOn("testMppAndAndroid")
+    }
 }
 
 gradle.taskGraph.whenReady {
@@ -116,10 +132,16 @@ tasks.withType<KotlinCompile> {
 tasks.withType<Test> {
     onlyIf { !project.hasProperty("noTest") }
 
+    dependsOn(":kotlin-gradle-plugin:validateTaskProperties")
+    dependsOnKotlinPluginInstall()
+
     executable = "${rootProject.extra["JDK_18"]!!}/bin/java"
 
     systemProperty("kotlinVersion", rootProject.extra["kotlinVersion"] as String)
     systemProperty("runnerGradleVersion", gradle.gradleVersion)
+    systemProperty("jdk9Home", rootProject.extra["JDK_9"] as String)
+    systemProperty("jdk10Home", rootProject.extra["JDK_10"] as String)
+    systemProperty("jdk11Home", rootProject.extra["JDK_11"] as String)
 
     val mavenLocalRepo = System.getProperty("maven.repo.local")
     if (mavenLocalRepo != null) {
@@ -127,6 +149,8 @@ tasks.withType<Test> {
     }
 
     useAndroidSdk()
+
+    maxHeapSize = "512m"
 
     testLogging {
         // set options for log level LIFECYCLE

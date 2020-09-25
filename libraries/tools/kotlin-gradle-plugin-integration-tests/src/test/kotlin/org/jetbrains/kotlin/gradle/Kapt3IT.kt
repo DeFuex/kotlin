@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.gradle
 import org.jetbrains.kotlin.gradle.tasks.USING_JVM_INCREMENTAL_COMPILATION_MESSAGE
 import org.jetbrains.kotlin.gradle.util.*
 import org.junit.Assert
+import org.junit.Assume
 import org.junit.Test
 import java.io.File
 import java.util.zip.ZipFile
@@ -45,15 +46,48 @@ class Kapt3WorkersIT : Kapt3IT() {
 
     @Test
     fun testJavacIsLoadedOnce() {
-        // todo: actual minimum version is 4.3, but I had some problems. Investigate later.
-        // todo: consider minimum version for the whole class, with Gradle <4.3 all tests duplicate tests without workers
-        val gradleVersionRequired = GradleVersionRequired.AtLeast("4.5.1")
-
         val project =
-            Project("javacIsLoadedOnce", directoryPrefix = "kapt2", gradleVersionRequirement = gradleVersionRequired)
+            Project("javacIsLoadedOnce", directoryPrefix = "kapt2")
         project.build("build") {
             assertSuccessful()
             assertSubstringCount("Loaded com.sun.tools.javac.util.Context from", 1)
+        }
+    }
+
+    @Test
+    fun testKaptSkipped() {
+        val project =
+            Project("kaptSkipped", directoryPrefix = "kapt2")
+        project.build("build") {
+            assertSuccessful()
+        }
+    }
+
+    @Test
+    fun testSimpleWithJdk10() {
+        val javaHome = File(System.getProperty("jdk10Home")!!)
+        Assume.assumeTrue("JDK 10 isn't available", javaHome.isDirectory)
+        val options = defaultBuildOptions().copy(javaHome = javaHome)
+
+        val project = Project("simple", directoryPrefix = "kapt2")
+        project.build("build", options = options) {
+            assertSuccessful()
+            assertKaptSuccessful()
+            // Check added because of https://youtrack.jetbrains.com/issue/KT-33056.
+            assertNotContains("javaslang.match.PatternsProcessor")
+        }
+    }
+
+    @Test
+    fun testSimpleWithJdk11() {
+        val javaHome = File(System.getProperty("jdk11Home")!!)
+        Assume.assumeTrue("JDK 11 isn't available", javaHome.isDirectory)
+        val options = defaultBuildOptions().copy(javaHome = javaHome)
+
+        val project = Project("simple", directoryPrefix = "kapt2")
+        project.build("build", options = options) {
+            assertSuccessful()
+            assertKaptSuccessful()
         }
     }
 }
@@ -364,9 +398,9 @@ open class Kapt3IT : Kapt3BaseIT() {
             val actual = getErrorMessages()
             // try as 0 starting lines first, then as 1 starting line
             try {
-                Assert.assertEquals(genJavaErrorString(9, 17), actual)
+                Assert.assertEquals(genJavaErrorString(8, 16), actual)
             } catch (e: AssertionError) {
-                Assert.assertEquals(genJavaErrorString(10, 18), actual)
+                Assert.assertEquals(genJavaErrorString(9, 17), actual)
             }
         }
 
@@ -507,7 +541,7 @@ open class Kapt3IT : Kapt3BaseIT() {
     }
 
     @Test
-    fun testKt19179() {
+    fun testKt19179andKt37241() {
         val project = Project("kt19179", directoryPrefix = "kapt2")
 
         project.build("build") {
@@ -531,6 +565,9 @@ open class Kapt3IT : Kapt3BaseIT() {
                 ":app:kaptGenerateStubsKotlin",
                 ":app:kaptKotlin"
             )
+
+            // Test for KT-37241, check the that non-existent classpath entry is filtered out:
+            assertNotContains("Classpath entry points to a non-existent location")
         }
 
         project.projectDir.getFileByName("Test.kt").modify { text ->
@@ -565,5 +602,61 @@ open class Kapt3IT : Kapt3BaseIT() {
         gradleBuildScript().appendText("\ndependencies { implementation project(':simple') }")
 
         testResolveAllConfigurations()
+    }
+
+    @Test
+    fun testMPPKaptPresence() {
+        val project = Project("mpp-kapt-presence", directoryPrefix = "kapt2")
+
+        project.build("build") {
+            assertSuccessful()
+            assertTasksExecuted(":dac:jdk:kaptGenerateStubsKotlin", ":dac:jdk:compileKotlin")
+        }
+    }
+
+    /** Regression test for KT-31127. */
+    @Test
+    fun testKotlinProcessorUsingFiler() {
+        val project = Project("kotlinProject").apply {
+            setupWorkingDir()
+            gradleBuildScript().appendText("""
+                apply plugin: 'kotlin-kapt'
+
+                dependencies {
+                   kapt "org.jetbrains.kotlin:annotation-processor-example:${"$"}kotlin_version"
+                   implementation "org.jetbrains.kotlin:annotation-processor-example:${"$"}kotlin_version"
+                }
+            """.trimIndent())
+
+            // The test must not contain any java sources in order to detect the issue.
+            Assert.assertEquals(emptyList<File>(), projectDir.allJavaFiles().toList())
+            projectDir.getFileByName("Dummy.kt").modify {
+                it.replace("class Dummy", "@example.KotlinFilerGenerated class Dummy")
+            }
+        }
+
+        project.build("build") {
+            assertSuccessful()
+            assertFileExists("build/generated/source/kapt/main/demo/DummyGenerated.kt")
+            assertTasksExecuted(":compileKotlin")
+            assertTasksSkipped(":compileJava")
+        }
+    }
+
+    @Test
+    fun testSimpleWithJdk11AndSourceLevel8() {
+        val javaHome = File(System.getProperty("jdk11Home")!!)
+        Assume.assumeTrue("JDK 11 isn't available", javaHome.isDirectory)
+        val options = defaultBuildOptions().copy(javaHome = javaHome)
+
+        val project = Project("simple", directoryPrefix = "kapt2").also {
+            it.setupWorkingDir()
+            it.gradleBuildScript().appendText("\nsourceCompatibility = '8'")
+        }
+        project.build("build", options = options) {
+            assertSuccessful()
+            assertKaptSuccessful()
+            assertContains("Javac options: {-source=1.8}")
+        }
     }
 }

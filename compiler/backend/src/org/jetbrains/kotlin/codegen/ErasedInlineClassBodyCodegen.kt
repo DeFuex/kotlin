@@ -1,10 +1,11 @@
 /*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2000-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.codegen
 
+import org.jetbrains.kotlin.codegen.DescriptorAsmUtil.genTotalOrderEqualsForExpressionOnStack
 import org.jetbrains.kotlin.codegen.context.ClassContext
 import org.jetbrains.kotlin.codegen.state.GenerationState
 import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper
@@ -17,6 +18,7 @@ import org.jetbrains.kotlin.resolve.jvm.AsmTypes
 import org.jetbrains.kotlin.resolve.jvm.diagnostics.Synthetic
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodGenericSignature
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodSignature
+import org.jetbrains.org.objectweb.asm.Type
 
 class ErasedInlineClassBodyCodegen(
     aClass: KtClass,
@@ -109,10 +111,16 @@ class ErasedInlineClassBodyCodegen(
 
 
                 override fun doGenerateBody(codegen: ExpressionCodegen, signature: JvmMethodSignature) {
-                    val iv = codegen.v
-                    iv.aconst(null)
-                    iv.athrow()
+                    val firstIndex = codegen.frameMap.getIndex(specializedEqualsDescriptor.valueParameters[0])
+                    val secondIndex = codegen.frameMap.getIndex(specializedEqualsDescriptor.valueParameters[1])
+                    val asmType = signature.valueParameters[0].asmType
+                    val left = StackValue.local(firstIndex, asmType)
+                    val right = StackValue.local(secondIndex, asmType)
+                    genTotalOrderEqualsForExpressionOnStack(left, right, asmType).put(Type.BOOLEAN_TYPE, codegen.v)
+                    codegen.v.areturn(Type.BOOLEAN_TYPE)
                 }
+
+                override fun skipNotNullAssertionsForParameters(): Boolean = true
             }
         )
     }

@@ -17,7 +17,7 @@
 package org.jetbrains.kotlin.codegen
 
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
-import org.jetbrains.kotlin.builtins.jvm.JavaToKotlinClassMap
+import org.jetbrains.kotlin.builtins.jvm.JavaToKotlinClassMapper
 import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor.Kind.DECLARATION
@@ -305,7 +305,7 @@ class CollectionStubMethodGenerator(
                 }.groupBy { it.name }
 
         for ((name, fromSupertypes) in membersFromSupertypesByName) {
-            OverridingUtil.generateOverridesInFunctionGroup(name, fromSupertypes, emptyList(), classDescriptor, strategy)
+            OverridingUtil.DEFAULT.generateOverridesInFunctionGroup(name, fromSupertypes, emptyList(), classDescriptor, strategy)
         }
     }
 
@@ -321,7 +321,7 @@ class CollectionStubMethodGenerator(
         )
 
         child.modality = Modality.FINAL
-        child.visibility = Visibilities.PUBLIC
+        child.visibility = DescriptorVisibilities.PUBLIC
         val typeParameters = descriptor.typeConstructor.parameters
         val newTypeParameters = ArrayList<TypeParameterDescriptor>(typeParameters.size)
         DescriptorSubstitutor.substituteTypeParameters(typeParameters, TypeSubstitution.EMPTY, child, newTypeParameters)
@@ -360,7 +360,7 @@ private val READ_ONLY_ARE_EQUAL_TO_MUTABLE_TYPE_CHECKER = KotlinTypeCheckerImpl.
     val firstClass = x.declarationDescriptor as? ClassDescriptor ?: return@withAxioms x == y
     val secondClass = y.declarationDescriptor as? ClassDescriptor ?: return@withAxioms x == y
 
-    val j2k = JavaToKotlinClassMap
+    val j2k = JavaToKotlinClassMapper
     val firstReadOnly = if (j2k.isMutable(firstClass)) j2k.convertMutableToReadOnly(firstClass) else firstClass
     val secondReadOnly = if (j2k.isMutable(secondClass)) j2k.convertMutableToReadOnly(secondClass) else secondClass
     firstReadOnly.typeConstructor == secondReadOnly.typeConstructor

@@ -1,5 +1,5 @@
-// IGNORE_BACKEND: JVM_IR
 // TARGET_BACKEND: JVM
+// IGNORE_BACKEND_FIR: JVM_IR
 
 import java.util.ArrayList
 

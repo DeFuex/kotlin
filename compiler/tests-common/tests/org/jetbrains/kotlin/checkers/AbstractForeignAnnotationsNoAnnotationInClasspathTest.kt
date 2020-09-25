@@ -22,7 +22,11 @@ import org.jetbrains.kotlin.test.KotlinTestUtils
 import java.io.File
 
 abstract class AbstractForeignAnnotationsNoAnnotationInClasspathTest : AbstractForeignAnnotationsTest() {
-    private val compiledJavaPath = KotlinTestUtils.tmpDir("java-compiled-files")
+    // This should be executed after setUp runs, since setUp changes the root folder
+    // for temporary files.
+    private val compiledJavaPath by lazy {
+        KotlinTestUtils.tmpDir("java-compiled-files")
+    }
 
     override fun getExtraClasspath(): List<File> {
         val foreignAnnotations = createJarWithForeignAnnotations()
@@ -38,9 +42,8 @@ abstract class AbstractForeignAnnotationsNoAnnotationInClasspathTest : AbstractF
         return listOf(compiledJavaPath) + testAnnotations
     }
 
-    override fun analyzeAndCheck(testDataFile: File, files: List<TestFile>) {
-        if (files.any { file -> InTextDirectivesUtils.isDirectiveDefined(file.expectedText, "// SOURCE_RETENTION_ANNOTATIONS") }) return
-        super.analyzeAndCheck(testDataFile, files)
+    override fun shouldSkipTest(wholeFile: File, files: List<TestFile>): Boolean {
+        return files.any { file -> InTextDirectivesUtils.isDirectiveDefined(file.expectedText, "// SOURCE_RETENTION_ANNOTATIONS") }
     }
 
     override fun isJavaSourceRootNeeded() = false

@@ -11,9 +11,9 @@ dependencies {
     compile(project(":compiler:cli-common"))
     compile(project(":compiler:frontend.java"))
     compile(project(":js:js.frontend"))
-    compile(project(":kotlin-native:kotlin-native-library-reader"))
+    compile(project(":native:frontend.native"))
     compileOnly(intellijDep())
-    compileOnly(intellijDep("jps-standalone")) { includeJars("jps-model") }
+    compileOnly(jpsStandalone()) { includeJars("jps-model") }
 }
 
 sourceSets {
@@ -21,8 +21,4 @@ sourceSets {
     "test" {}
 }
 
-runtimeJar {
-    archiveName = "jps-common-ide.jar"
-}
-
-ideaPlugin()
+runtimeJar()

@@ -1,5 +1,3 @@
-// IGNORE_BACKEND: JVM_IR
-
 var result = ""
 
 class A {

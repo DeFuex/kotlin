@@ -17,54 +17,53 @@
 package org.jetbrains.kotlin.generators.tests
 
 import org.jetbrains.kotlin.checkers.AbstractForeignJava8AnnotationsNoAnnotationInClasspathTest
-import org.jetbrains.kotlin.checkers.AbstractForeignJava8AnnotationsNoAnnotationInClasspathWithFastClassReadingTest
+import org.jetbrains.kotlin.checkers.AbstractForeignJava8AnnotationsNoAnnotationInClasspathWithPsiClassReadingTest
 import org.jetbrains.kotlin.checkers.AbstractForeignJava8AnnotationsTest
 import org.jetbrains.kotlin.checkers.javac.AbstractJavacForeignJava8AnnotationsTest
-import org.jetbrains.kotlin.codegen.AbstractBytecodeTextTest
-import org.jetbrains.kotlin.codegen.AbstractCompileKotlinAgainstKotlinTest
-import org.jetbrains.kotlin.codegen.flags.AbstractWriteFlagsTest
-import org.jetbrains.kotlin.generators.tests.generator.testGroup
+import org.jetbrains.kotlin.generators.tests.generator.testGroupSuite
 import org.jetbrains.kotlin.jvm.compiler.AbstractLoadJava8Test
-import org.jetbrains.kotlin.jvm.compiler.AbstractLoadJava8WithFastClassReadingTest
+import org.jetbrains.kotlin.jvm.compiler.AbstractLoadJava8WithPsiClassReadingTest
 import org.jetbrains.kotlin.jvm.compiler.javac.AbstractLoadJava8UsingJavacTest
 import org.jetbrains.kotlin.resolve.calls.AbstractEnhancedSignaturesResolvedCallsTest
 
 fun main(args: Array<String>) {
     System.setProperty("java.awt.headless", "true")
 
-    testGroup("compiler/tests-java8/tests", "compiler/testData") {
-        testClass<AbstractForeignJava8AnnotationsTest> {
-            model("foreignAnnotationsJava8/tests")
-        }
+    testGroupSuite(args) {
+        testGroup("compiler/tests-java8/tests", "compiler/testData") {
+            testClass<AbstractForeignJava8AnnotationsTest> {
+                model("foreignAnnotationsJava8/tests")
+            }
 
-        testClass<AbstractJavacForeignJava8AnnotationsTest> {
-            model("foreignAnnotationsJava8/tests")
-        }
+            testClass<AbstractJavacForeignJava8AnnotationsTest> {
+                model("foreignAnnotationsJava8/tests")
+            }
 
-        testClass<AbstractForeignJava8AnnotationsNoAnnotationInClasspathTest> {
-            model("foreignAnnotationsJava8/tests")
-        }
+            testClass<AbstractForeignJava8AnnotationsNoAnnotationInClasspathTest> {
+                model("foreignAnnotationsJava8/tests")
+            }
 
-        testClass<AbstractForeignJava8AnnotationsNoAnnotationInClasspathWithFastClassReadingTest> {
-            model("foreignAnnotationsJava8/tests")
-        }
+            testClass<AbstractForeignJava8AnnotationsNoAnnotationInClasspathWithPsiClassReadingTest> {
+                model("foreignAnnotationsJava8/tests")
+            }
 
-        testClass<AbstractLoadJava8Test> {
-            model("loadJava8/compiledJava", extension = "java", testMethod = "doTestCompiledJava")
-            model("loadJava8/sourceJava", extension = "java", testMethod = "doTestSourceJava")
-        }
+            testClass<AbstractLoadJava8Test> {
+                model("loadJava8/compiledJava", extension = "java", testMethod = "doTestCompiledJava")
+                model("loadJava8/sourceJava", extension = "java", testMethod = "doTestSourceJava")
+            }
 
-        testClass<AbstractLoadJava8UsingJavacTest> {
-            model("loadJava8/compiledJava", extension = "java", testMethod = "doTestCompiledJava")
-            model("loadJava8/sourceJava", extension = "java", testMethod = "doTestSourceJava")
-        }
+            testClass<AbstractLoadJava8UsingJavacTest> {
+                model("loadJava8/compiledJava", extension = "java", testMethod = "doTestCompiledJava")
+                model("loadJava8/sourceJava", extension = "java", testMethod = "doTestSourceJava")
+            }
 
-        testClass<AbstractLoadJava8WithFastClassReadingTest> {
-            model("loadJava8/compiledJava", extension = "java", testMethod = "doTestCompiledJava")
-        }
+            testClass<AbstractLoadJava8WithPsiClassReadingTest> {
+                model("loadJava8/compiledJava", extension = "java", testMethod = "doTestCompiledJava")
+            }
 
-        testClass<AbstractEnhancedSignaturesResolvedCallsTest> {
-            model("resolvedCalls/enhancedSignatures")
+            testClass<AbstractEnhancedSignaturesResolvedCallsTest> {
+                model("resolvedCalls/enhancedSignatures")
+            }
         }
     }
 }

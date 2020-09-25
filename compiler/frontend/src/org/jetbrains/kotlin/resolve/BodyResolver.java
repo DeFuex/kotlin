@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.resolve;
 
 import com.google.common.collect.Maps;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.containers.Queue;
@@ -36,6 +37,7 @@ import org.jetbrains.kotlin.lexer.KtTokens;
 import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt;
 import org.jetbrains.kotlin.resolve.calls.CallResolver;
+import org.jetbrains.kotlin.resolve.calls.components.InferenceSession;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
 import org.jetbrains.kotlin.resolve.calls.results.OverloadResolutionResults;
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo;
@@ -195,6 +197,8 @@ public class BodyResolver {
         Set<ConstructorDescriptor> visitedInCurrentChain = new HashSet<>();
         ConstructorDescriptor currentConstructorDescriptor = constructorDescriptor;
         while (true) {
+            ProgressManager.checkCanceled();
+
             visitedInCurrentChain.add(currentConstructorDescriptor);
             ConstructorDescriptor delegatedConstructorDescriptor = getDelegatedConstructor(currentConstructorDescriptor);
             if (delegatedConstructorDescriptor == null) break;
@@ -266,6 +270,8 @@ public class BodyResolver {
             @NotNull LexicalScope scopeForConstructorResolution,
             @NotNull LexicalScope scopeForMemberResolution
     ) {
+        ProgressManager.checkCanceled();
+
         LexicalScope scopeForConstructor =
                 primaryConstructor == null
                 ? null
@@ -303,7 +309,9 @@ public class BodyResolver {
                 if (delegateExpression != null) {
                     LexicalScope scope = scopeForConstructor == null ? scopeForMemberResolution : scopeForConstructor;
                     KotlinType expectedType = supertype != null ? supertype : NO_EXPECTED_TYPE;
-                    typeInferrer.getType(scope, delegateExpression, expectedType, outerDataFlowInfo, trace);
+                    typeInferrer.getType(
+                            scope, delegateExpression, expectedType, outerDataFlowInfo, InferenceSession.Companion.getDefault(), trace
+                    );
                 }
 
                 if (descriptor.isExpect()) {
@@ -396,6 +404,8 @@ public class BodyResolver {
         }
 
         for (KtSuperTypeListEntry delegationSpecifier : ktClass.getSuperTypeListEntries()) {
+            ProgressManager.checkCanceled();
+
             delegationSpecifier.accept(visitor);
         }
 
@@ -631,7 +641,7 @@ public class BodyResolver {
                         trace.report(SEALED_SUPERTYPE_IN_LOCAL_CLASS.on(typeReference));
                     }
                 }
-                else if (ModalityKt.isFinalOrEnum(classDescriptor)) {
+                else if (ModalityUtilsKt.isFinalOrEnum(classDescriptor)) {
                     trace.report(FINAL_SUPERTYPE.on(typeReference));
                 }
                 else if (KotlinBuiltIns.isEnum(classDescriptor)) {
@@ -654,13 +664,16 @@ public class BodyResolver {
             @NotNull KtAnonymousInitializer anonymousInitializer,
             @NotNull ClassDescriptorWithResolutionScopes classDescriptor
     ) {
+        ProgressManager.checkCanceled();
+
         LexicalScope scopeForInitializers = classDescriptor.getScopeForInitializerResolution();
         KtExpression body = anonymousInitializer.getBody();
         if (body != null) {
             PreliminaryDeclarationVisitor.Companion.createForDeclaration(
                     (KtDeclaration) anonymousInitializer.getParent().getParent(), trace, languageVersionSettings);
             expressionTypingServices.getTypeInfo(
-                    scopeForInitializers, body, NO_EXPECTED_TYPE, outerDataFlowInfo, trace, /*isStatement = */true
+                    scopeForInitializers, body, NO_EXPECTED_TYPE, outerDataFlowInfo,
+                    InferenceSession.Companion.getDefault(), trace, /*isStatement = */true
             );
         }
         processModifiersOnInitializer(anonymousInitializer, scopeForInitializers);
@@ -864,6 +877,7 @@ public class BodyResolver {
                                                           propertyDescriptor,
                                                           delegateExpression,
                                                           propertyHeaderScope,
+                                                          InferenceSession.Companion.getDefault(),
                                                           trace);
     }
 
@@ -878,7 +892,7 @@ public class BodyResolver {
         KotlinType expectedTypeForInitializer = property.getTypeReference() != null ? propertyDescriptor.getType() : NO_EXPECTED_TYPE;
         if (propertyDescriptor.getCompileTimeInitializer() == null) {
             expressionTypingServices.getType(propertyDeclarationInnerScope, initializer, expectedTypeForInitializer,
-                                             outerDataFlowInfo, trace);
+                                             outerDataFlowInfo, InferenceSession.Companion.getDefault(), trace);
         }
     }
 
@@ -930,6 +944,8 @@ public class BodyResolver {
             // Creates wrapper scope for header resolution if necessary (see resolveSecondaryConstructorBody)
             @Nullable Function1<LexicalScope, LexicalScope> headerScopeFactory
     ) {
+        ProgressManager.checkCanceled();
+
         PreliminaryDeclarationVisitor.Companion.createForDeclaration(function, trace, languageVersionSettings);
         LexicalScope innerScope = FunctionDescriptorUtil.getFunctionInnerScope(scope, functionDescriptor, trace, overloadChecker);
         List<KtParameter> valueParameters = function.getValueParameters();

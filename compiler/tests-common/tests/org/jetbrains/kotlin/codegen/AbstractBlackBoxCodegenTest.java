@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.codegen;
@@ -11,11 +11,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.TestsRuntimeError;
 import org.jetbrains.kotlin.backend.common.CodegenUtil;
+import org.jetbrains.kotlin.builtins.StandardNames;
+import org.jetbrains.kotlin.codegen.ir.AbstractFirBlackBoxCodegenTest;
 import org.jetbrains.kotlin.fileClasses.JvmFileClassUtil;
-import org.jetbrains.kotlin.psi.*;
-import org.jetbrains.kotlin.resolve.BindingContext;
+import org.jetbrains.kotlin.psi.KtFile;
 import org.jetbrains.kotlin.test.InTextDirectivesUtils;
-import org.jetbrains.kotlin.test.TargetBackend;
 import org.jetbrains.kotlin.utils.ExceptionUtilsKt;
 
 import java.io.File;
@@ -28,22 +28,17 @@ import static org.jetbrains.kotlin.test.clientserver.TestProcessServerKt.getBoxM
 import static org.jetbrains.kotlin.test.clientserver.TestProcessServerKt.getGeneratedClass;
 
 public abstract class AbstractBlackBoxCodegenTest extends CodegenTestCase {
-
-    public static final boolean IGNORE_EXPECTED_FAILURES =
-            Boolean.getBoolean("kotlin.suppress.expected.test.failures");
-
-    @Override
     protected void doMultiFileTest(
-        @NotNull File wholeFile,
-        @NotNull List<TestFile> files,
-        @Nullable File javaFilesDir
+            @NotNull File wholeFile,
+            @NotNull List<TestFile> files,
+            boolean unexpectedBehaviour
     ) throws Exception {
-        boolean isIgnored = IGNORE_EXPECTED_FAILURES && InTextDirectivesUtils.isIgnoredTarget(getBackend(), wholeFile);
+        boolean isIgnored = isIgnoredTarget(wholeFile);
 
-        compile(files, javaFilesDir, !isIgnored);
+        compile(files, !isIgnored, false);
 
         try {
-            blackBox(!isIgnored);
+            blackBox(!isIgnored, unexpectedBehaviour);
         }
         catch (Throwable t) {
             if (!isIgnored) {
@@ -61,13 +56,23 @@ public abstract class AbstractBlackBoxCodegenTest extends CodegenTestCase {
         doBytecodeListingTest(wholeFile);
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    protected void doMultiFileTest(
+        @NotNull File wholeFile,
+        @NotNull List<? extends TestFile> files
+    ) throws Exception {
+        doMultiFileTest(wholeFile, (List<TestFile>) files, false);
+    }
+
     private void doBytecodeListingTest(@NotNull File wholeFile) throws Exception {
         if (!InTextDirectivesUtils.isDirectiveDefined(FileUtil.loadFile(wholeFile), "CHECK_BYTECODE_LISTING")) return;
 
         String suffix =
-                (coroutinesPackage.contains("experimental") || coroutinesPackage.isEmpty())
+                (coroutinesPackage.equals(StandardNames.COROUTINES_PACKAGE_FQ_NAME_EXPERIMENTAL.asString()) || coroutinesPackage.isEmpty())
                 && InTextDirectivesUtils.isDirectiveDefined(FileUtil.loadFile(wholeFile), "COMMON_COROUTINES_TEST")
-                ? "_1_2" : "";
+                ? "_1_2" :
+                getBackend().isIR() ? "_ir" : "";
         File expectedFile = new File(wholeFile.getParent(), FilesKt.getNameWithoutExtension(wholeFile) + suffix + ".txt");
 
         String text =
@@ -99,17 +104,17 @@ public abstract class AbstractBlackBoxCodegenTest extends CodegenTestCase {
         assertEqualsToFile(expectedFile, text, s -> s.replace("COROUTINES_PACKAGE", coroutinesPackage));
     }
 
-    protected void blackBox(boolean reportProblems) {
+    protected void blackBox(boolean reportProblems, boolean unexpectedBehaviour) {
         // If there are many files, the first 'box(): String' function will be executed.
         GeneratedClassLoader generatedClassLoader = generateAndCreateClassLoader(reportProblems);
         for (KtFile firstFile : myFiles.getPsiFiles()) {
-            String className = getFacadeFqName(firstFile, classFileFactory.getGenerationState().getBindingContext());
+            String className = getFacadeFqName(firstFile);
             if (className == null) continue;
             Class<?> aClass = getGeneratedClass(generatedClassLoader, className);
             try {
                 Method method = getBoxMethodOrNull(aClass);
                 if (method != null) {
-                    callBoxMethodAndCheckResult(generatedClassLoader, aClass, method);
+                    callBoxMethodAndCheckResult(generatedClassLoader, aClass, method, unexpectedBehaviour);
                     return;
                 }
             }
@@ -126,17 +131,25 @@ public abstract class AbstractBlackBoxCodegenTest extends CodegenTestCase {
         fail("Can't find box method!");
     }
 
-    @Nullable
-    private static String getFacadeFqName(@NotNull KtFile firstFile, @NotNull BindingContext bindingContext) {
-        for (KtDeclaration declaration : CodegenUtil.getDeclarationsToGenerate(firstFile, bindingContext)) {
-            if (declaration instanceof KtProperty || declaration instanceof KtNamedFunction || declaration instanceof KtTypeAlias) {
-                return JvmFileClassUtil.getFileClassInfoNoResolve(firstFile).getFacadeClassFqName().asString();
-            }
-        }
-        return null;
+    protected void blackBox(boolean reportProblems) {
+        blackBox(reportProblems, false);
     }
 
-    protected TargetBackend getBackend() {
-        return TargetBackend.JVM;
+    @Nullable
+    private static String getFacadeFqName(@NotNull KtFile file) {
+        return CodegenUtil.getMemberDeclarationsToGenerate(file).isEmpty()
+               ? null
+               : JvmFileClassUtil.getFileClassInfoNoResolve(file).getFacadeClassFqName().asString();
+    }
+
+    protected boolean isIgnoredTarget(@NotNull File wholeFile) {
+        try {
+            return InTextDirectivesUtils.isIgnoredTarget(getBackend(), wholeFile) ||
+                   (this instanceof AbstractFirBlackBoxCodegenTest &&
+                    InTextDirectivesUtils.isDirectiveDefined(FileUtil.loadFile(wholeFile), "IGNORE_BACKEND_FIR: JVM_IR"));
+        }
+        catch (Exception e) {
+            throw ExceptionUtilsKt.rethrow(e);
+        }
     }
 }

@@ -1,4 +1,4 @@
-// IGNORE_BACKEND: JVM_IR
+// !LANGUAGE: +ProperFinally
 // FILE: 1.kt
 package test
 

@@ -20,7 +20,7 @@ import com.intellij.psi.tree.TokenSet;
 import org.jetbrains.kotlin.psi.*;
 
 public interface KtStubElementTypes {
-    KtFileElementType FILE = new KtFileElementType();
+    KtFileElementType FILE = KtFileElementType.INSTANCE;
 
     KtClassElementType CLASS = new KtClassElementType("CLASS");
     KtFunctionElementType FUNCTION = new KtFunctionElementType("FUN");
@@ -106,6 +106,12 @@ public interface KtStubElementTypes {
 
     KtValueArgumentElementType<KtValueArgument> VALUE_ARGUMENT =
             new KtValueArgumentElementType<>("VALUE_ARGUMENT", KtValueArgument.class);
+
+    KtPlaceHolderStubElementType<KtContractEffectList> CONTRACT_EFFECT_LIST =
+            new KtContractEffectListElementType("CONTRACT_EFFECT_LIST");
+
+    KtContractEffectElementType CONTRACT_EFFECT =
+            new KtContractEffectElementType("CONTRACT_EFFECT", KtContractEffect.class);
 
     KtValueArgumentElementType<KtLambdaArgument> LAMBDA_ARGUMENT =
             new KtValueArgumentElementType<>("LAMBDA_ARGUMENT", KtLambdaArgument.class);

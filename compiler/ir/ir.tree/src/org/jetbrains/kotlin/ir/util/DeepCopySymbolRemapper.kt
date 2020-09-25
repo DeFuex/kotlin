@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.ir.util
 
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.IrBlock
@@ -26,9 +27,11 @@ import org.jetbrains.kotlin.ir.symbols.impl.*
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 
+@OptIn(ObsoleteDescriptorBasedAPI::class)
 open class DeepCopySymbolRemapper(
-    private val descriptorsRemapper: DescriptorsRemapper = DescriptorsRemapper.DEFAULT
+    private val descriptorsRemapper: DescriptorsRemapper = DescriptorsRemapper.Default
 ) : IrElementVisitorVoid, SymbolRemapper {
+
     private val classes = hashMapOf<IrClassSymbol, IrClassSymbol>()
     private val constructors = hashMapOf<IrConstructorSymbol, IrConstructorSymbol>()
     private val enumEntries = hashMapOf<IrEnumEntrySymbol, IrEnumEntrySymbol>()
@@ -36,10 +39,13 @@ open class DeepCopySymbolRemapper(
     private val fields = hashMapOf<IrFieldSymbol, IrFieldSymbol>()
     private val files = hashMapOf<IrFileSymbol, IrFileSymbol>()
     private val functions = hashMapOf<IrSimpleFunctionSymbol, IrSimpleFunctionSymbol>()
+    private val properties = hashMapOf<IrPropertySymbol, IrPropertySymbol>()
     private val returnableBlocks = hashMapOf<IrReturnableBlockSymbol, IrReturnableBlockSymbol>()
     private val typeParameters = hashMapOf<IrTypeParameterSymbol, IrTypeParameterSymbol>()
     private val valueParameters = hashMapOf<IrValueParameterSymbol, IrValueParameterSymbol>()
     private val variables = hashMapOf<IrVariableSymbol, IrVariableSymbol>()
+    private val localDelegatedProperties = hashMapOf<IrLocalDelegatedPropertySymbol, IrLocalDelegatedPropertySymbol>()
+    private val typeAliases = hashMapOf<IrTypeAliasSymbol, IrTypeAliasSymbol>()
 
     override fun visitElement(element: IrElement) {
         element.acceptChildrenVoid(this)
@@ -81,10 +87,7 @@ open class DeepCopySymbolRemapper(
 
     override fun visitField(declaration: IrField) {
         remapSymbol(fields, declaration) {
-            if (declaration.correspondingProperty == null)
-                IrFieldSymbolImpl(descriptorsRemapper.remapDeclaredField(it.descriptor))
-            else
-                IrFieldSymbolImpl(descriptorsRemapper.remapDeclaredProperty(it.descriptor))
+            IrFieldSymbolImpl(descriptorsRemapper.remapDeclaredField(it.descriptor))
         }
         declaration.acceptChildrenVoid(this)
     }
@@ -99,6 +102,13 @@ open class DeepCopySymbolRemapper(
     override fun visitSimpleFunction(declaration: IrSimpleFunction) {
         remapSymbol(functions, declaration) {
             IrSimpleFunctionSymbolImpl(descriptorsRemapper.remapDeclaredSimpleFunction(it.descriptor))
+        }
+        declaration.acceptChildrenVoid(this)
+    }
+
+    override fun visitProperty(declaration: IrProperty) {
+        remapSymbol(properties, declaration) {
+            IrPropertySymbolImpl(descriptorsRemapper.remapDeclaredProperty(it.descriptor))
         }
         declaration.acceptChildrenVoid(this)
     }
@@ -124,6 +134,20 @@ open class DeepCopySymbolRemapper(
         declaration.acceptChildrenVoid(this)
     }
 
+    override fun visitLocalDelegatedProperty(declaration: IrLocalDelegatedProperty) {
+        remapSymbol(localDelegatedProperties, declaration) {
+            IrLocalDelegatedPropertySymbolImpl(descriptorsRemapper.remapDeclaredLocalDelegatedProperty(it.descriptor))
+        }
+        declaration.acceptChildrenVoid(this)
+    }
+
+    override fun visitTypeAlias(declaration: IrTypeAlias) {
+        remapSymbol(typeAliases, declaration) {
+            IrTypeAliasSymbolImpl(descriptorsRemapper.remapDeclaredTypeAlias(it.descriptor))
+        }
+        declaration.acceptChildrenVoid(this)
+    }
+
     override fun visitBlock(expression: IrBlock) {
         if (expression is IrReturnableBlock) {
             remapSymbol(returnableBlocks, expression) {
@@ -135,7 +159,7 @@ open class DeepCopySymbolRemapper(
 
     private fun <T : IrSymbol> Map<T, T>.getDeclared(symbol: T) =
         getOrElse(symbol) {
-            throw IllegalArgumentException("Non-remapped symbol $symbol ${symbol.descriptor}")
+            throw IllegalArgumentException("Non-remapped symbol $symbol")
         }
 
     private fun <T : IrSymbol> Map<T, T>.getReferenced(symbol: T) =
@@ -143,6 +167,7 @@ open class DeepCopySymbolRemapper(
 
     override fun getDeclaredClass(symbol: IrClassSymbol): IrClassSymbol = classes.getDeclared(symbol)
     override fun getDeclaredFunction(symbol: IrSimpleFunctionSymbol): IrSimpleFunctionSymbol = functions.getDeclared(symbol)
+    override fun getDeclaredProperty(symbol: IrPropertySymbol): IrPropertySymbol = properties.getDeclared(symbol)
     override fun getDeclaredField(symbol: IrFieldSymbol): IrFieldSymbol = fields.getDeclared(symbol)
     override fun getDeclaredFile(symbol: IrFileSymbol): IrFileSymbol = files.getDeclared(symbol)
     override fun getDeclaredConstructor(symbol: IrConstructorSymbol): IrConstructorSymbol = constructors.getDeclared(symbol)
@@ -153,26 +178,34 @@ open class DeepCopySymbolRemapper(
     override fun getDeclaredVariable(symbol: IrVariableSymbol): IrVariableSymbol = variables.getDeclared(symbol)
     override fun getDeclaredTypeParameter(symbol: IrTypeParameterSymbol): IrTypeParameterSymbol = typeParameters.getDeclared(symbol)
     override fun getDeclaredValueParameter(symbol: IrValueParameterSymbol): IrValueParameterSymbol = valueParameters.getDeclared(symbol)
+    override fun getDeclaredLocalDelegatedProperty(symbol: IrLocalDelegatedPropertySymbol): IrLocalDelegatedPropertySymbol =
+        localDelegatedProperties.getDeclared(symbol)
+
+    override fun getDeclaredTypeAlias(symbol: IrTypeAliasSymbol): IrTypeAliasSymbol = typeAliases.getDeclared(symbol)
 
     override fun getReferencedClass(symbol: IrClassSymbol): IrClassSymbol = classes.getReferenced(symbol)
     override fun getReferencedClassOrNull(symbol: IrClassSymbol?): IrClassSymbol? = symbol?.let { classes.getReferenced(it) }
     override fun getReferencedEnumEntry(symbol: IrEnumEntrySymbol): IrEnumEntrySymbol = enumEntries.getReferenced(symbol)
     override fun getReferencedVariable(symbol: IrVariableSymbol): IrVariableSymbol = variables.getReferenced(symbol)
+    override fun getReferencedLocalDelegatedProperty(symbol: IrLocalDelegatedPropertySymbol): IrLocalDelegatedPropertySymbol =
+        localDelegatedProperties.getReferenced(symbol)
+
     override fun getReferencedField(symbol: IrFieldSymbol): IrFieldSymbol = fields.getReferenced(symbol)
     override fun getReferencedConstructor(symbol: IrConstructorSymbol): IrConstructorSymbol = constructors.getReferenced(symbol)
     override fun getReferencedSimpleFunction(symbol: IrSimpleFunctionSymbol): IrSimpleFunctionSymbol = functions.getReferenced(symbol)
+    override fun getReferencedProperty(symbol: IrPropertySymbol): IrPropertySymbol = properties.getReferenced(symbol)
     override fun getReferencedValue(symbol: IrValueSymbol): IrValueSymbol =
         when (symbol) {
             is IrValueParameterSymbol -> valueParameters.getReferenced(symbol)
             is IrVariableSymbol -> variables.getReferenced(symbol)
-            else -> throw IllegalArgumentException("Unexpected symbol $symbol ${symbol.descriptor}")
+            else -> throw IllegalArgumentException("Unexpected symbol $symbol")
         }
 
     override fun getReferencedFunction(symbol: IrFunctionSymbol): IrFunctionSymbol =
         when (symbol) {
             is IrSimpleFunctionSymbol -> functions.getReferenced(symbol)
             is IrConstructorSymbol -> constructors.getReferenced(symbol)
-            else -> throw IllegalArgumentException("Unexpected symbol $symbol ${symbol.descriptor}")
+            else -> throw IllegalArgumentException("Unexpected symbol $symbol")
         }
 
     override fun getReferencedReturnableBlock(symbol: IrReturnableBlockSymbol): IrReturnableBlockSymbol =
@@ -182,6 +215,8 @@ open class DeepCopySymbolRemapper(
         when (symbol) {
             is IrClassSymbol -> classes.getReferenced(symbol)
             is IrTypeParameterSymbol -> typeParameters.getReferenced(symbol)
-            else -> throw IllegalArgumentException("Unexpected symbol $symbol ${symbol.descriptor}")
+            else -> throw IllegalArgumentException("Unexpected symbol $symbol")
         }
+
+    override fun getReferencedTypeAlias(symbol: IrTypeAliasSymbol): IrTypeAliasSymbol = typeAliases.getReferenced(symbol)
 }

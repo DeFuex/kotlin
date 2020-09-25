@@ -1,26 +1,18 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.diagnostics
 
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNameIdentifierOwner
+import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.tree.TokenSet
 import org.jetbrains.kotlin.KtNodeTypes
+import org.jetbrains.kotlin.cfg.UnreachableCode
 import org.jetbrains.kotlin.diagnostics.Errors.ACTUAL_WITHOUT_EXPECT
 import org.jetbrains.kotlin.diagnostics.Errors.NO_ACTUAL_FOR_EXPECT
 import org.jetbrains.kotlin.lexer.KtModifierKeywordToken
@@ -188,6 +180,44 @@ object PositioningStrategies {
     }
 
     @JvmField
+    val DECLARATION_START_TO_NAME: PositioningStrategy<KtDeclaration> = object : DeclarationHeader<KtDeclaration>() {
+
+        private fun PsiElement.firstNonCommentNonAnnotationLeaf(): PsiElement? {
+            var child: PsiElement? = firstChild ?: return this // this is leaf
+            while (true) {
+                if (child is PsiComment || child is PsiWhiteSpace || child is KtAnnotationEntry) {
+                    child = child.nextSibling
+                    continue
+                }
+                if (child == null) return null // no children of accepted type in this
+                val leaf = child.firstNonCommentNonAnnotationLeaf()
+                if (leaf == null) {
+                    child = child.nextSibling
+                    continue
+                }
+                return leaf
+            }
+        }
+
+        override fun mark(element: KtDeclaration): List<TextRange> {
+            val startElement = element.firstNonCommentNonAnnotationLeaf() ?: element
+            val nameIdentifier = (element as? KtNamedDeclaration)?.nameIdentifier
+            return if (nameIdentifier != null) {
+                markRange(startElement, nameIdentifier)
+            } else when (element) {
+                // companion object/constructors without name
+                is KtConstructor<*> -> {
+                    markRange(startElement, element.getConstructorKeyword() ?: element)
+                }
+                is KtObjectDeclaration -> {
+                    markRange(startElement, element.getObjectKeyword() ?: element)
+                }
+                else -> DEFAULT.mark(element)
+            }
+        }
+    }
+
+    @JvmField
     val DECLARATION_NAME: PositioningStrategy<KtNamedDeclaration> = object : DeclarationHeader<KtNamedDeclaration>() {
         override fun mark(element: KtNamedDeclaration): List<TextRange> {
             val nameIdentifier = element.nameIdentifier
@@ -195,7 +225,7 @@ object PositioningStrategies {
                 if (element is KtClassOrObject) {
                     val startElement =
                         element.getModifierList()?.getModifier(KtTokens.ENUM_KEYWORD)
-                                ?: element.node.findChildByType(TokenSet.create(KtTokens.CLASS_KEYWORD, KtTokens.OBJECT_KEYWORD))?.psi
+                            ?: element.node.findChildByType(TokenSet.create(KtTokens.CLASS_KEYWORD, KtTokens.OBJECT_KEYWORD))?.psi
                                 ?: element
 
                     return markRange(startElement, nameIdentifier)
@@ -238,7 +268,7 @@ object PositioningStrategies {
                 is KtPropertyAccessor -> {
                     val endOfSignatureElement =
                         element.returnTypeReference
-                                ?: element.rightParenthesis?.psi
+                                ?: element.rightParenthesis
                                 ?: element.namePlaceholder
 
                     return markRange(element, endOfSignatureElement)
@@ -559,7 +589,8 @@ object PositioningStrategies {
     @JvmField
     val UNREACHABLE_CODE: PositioningStrategy<PsiElement> = object : PositioningStrategy<PsiElement>() {
         override fun markDiagnostic(diagnostic: ParametrizedDiagnostic<out PsiElement>): List<TextRange> {
-            return Errors.UNREACHABLE_CODE.cast(diagnostic).a
+            val unreachableCode = Errors.UNREACHABLE_CODE.cast(diagnostic)
+            return UnreachableCode.getUnreachableTextRanges(unreachableCode.psiElement, unreachableCode.a, unreachableCode.b)
         }
     }
 

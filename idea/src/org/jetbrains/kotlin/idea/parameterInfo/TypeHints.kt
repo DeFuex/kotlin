@@ -1,23 +1,27 @@
 /*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2000-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.parameterInfo
 
+import com.intellij.application.options.CodeStyle
 import com.intellij.codeInsight.hints.InlayInfo
 import com.intellij.psi.PsiElement
-import com.intellij.psi.codeStyle.CodeStyleSettingsManager
+import com.intellij.psi.PsiWhiteSpace
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
 import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
 import org.jetbrains.kotlin.idea.caches.resolve.resolveToCall
 import org.jetbrains.kotlin.idea.core.formatter.KotlinCodeStyleSettings
+import org.jetbrains.kotlin.idea.core.util.getLineCount
+import org.jetbrains.kotlin.idea.core.util.isMultiLine
 import org.jetbrains.kotlin.idea.intentions.SpecifyTypeExplicitlyIntention
+import org.jetbrains.kotlin.idea.refactoring.getLineNumber
 import org.jetbrains.kotlin.idea.references.resolveMainReferenceToDescriptors
 import org.jetbrains.kotlin.idea.util.getResolutionScope
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
-import org.jetbrains.kotlin.load.java.sam.SamConstructorDescriptor
+import org.jetbrains.kotlin.resolve.sam.SamConstructorDescriptor
 import org.jetbrains.kotlin.name.SpecialNames
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
@@ -35,6 +39,7 @@ import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.typeUtil.containsError
 import org.jetbrains.kotlin.types.typeUtil.immediateSupertypes
 import org.jetbrains.kotlin.types.typeUtil.isEnum
+import org.jetbrains.kotlin.types.typeUtil.isUnit
 
 //hack to separate type presentation from param info presentation
 const val TYPE_INFO_PREFIX = "@TYPE@"
@@ -100,10 +105,21 @@ fun provideTypeHint(element: KtCallableDeclaration, offset: Int): List<InlayInfo
         return emptyList()
     }
 
-    return if (isUnclearType(type, element)) {
-        val settings = CodeStyleSettingsManager.getInstance(element.project).currentSettings
-            .getCustomSettings(KotlinCodeStyleSettings::class.java)
+    if (element is KtProperty && element.isLocal && type.isUnit() && element.isMultiLine()) {
+        val propertyLine = element.getLineNumber()
+        val equalsTokenLine = element.equalsToken?.getLineNumber() ?: -1
+        val initializerLine = element.initializer?.getLineNumber() ?: -1
+        if (propertyLine == equalsTokenLine && propertyLine != initializerLine) {
+            val indentBeforeProperty = (element.prevSibling as? PsiWhiteSpace)?.text?.substringAfterLast('\n')
+            val indentBeforeInitializer = (element.initializer?.prevSibling as? PsiWhiteSpace)?.text?.substringAfterLast('\n')
+            if (indentBeforeProperty == indentBeforeInitializer) {
+                return emptyList()
+            }
+        }
+    }
 
+    return if (isUnclearType(type, element)) {
+        val settings = CodeStyle.getCustomSettings(element.containingFile, KotlinCodeStyleSettings::class.java)
         val declString = buildString {
             append(TYPE_INFO_PREFIX)
             if (settings.SPACE_BEFORE_TYPE_COLON) {
@@ -115,7 +131,7 @@ fun provideTypeHint(element: KtCallableDeclaration, offset: Int): List<InlayInfo
             }
             append(getInlayHintsTypeRenderer(element.analyze(), element).renderType(type))
         }
-        listOf(InlayInfo(declString, offset, false, true, true))
+        listOf(InlayInfo(declString, offset, isShowOnlyIfExistedBefore = false, isFilterByBlacklist = true, relatesToPrecedingText = true))
     } else {
         emptyList()
     }
@@ -171,7 +187,8 @@ private fun isConstructorCall(initializer: KtExpression?): Boolean {
 
 private fun KtExpression.isClassOrPackageReference(): Boolean =
     when (this) {
-        is KtNameReferenceExpression -> this.resolveMainReferenceToDescriptors().singleOrNull().let { it is ClassDescriptor || it is PackageViewDescriptor }
+        is KtNameReferenceExpression -> this.resolveMainReferenceToDescriptors().singleOrNull()
+            .let { it is ClassDescriptor || it is PackageViewDescriptor }
         is KtDotQualifiedExpression -> this.selectorExpression?.isClassOrPackageReference() ?: false
         else -> false
     }

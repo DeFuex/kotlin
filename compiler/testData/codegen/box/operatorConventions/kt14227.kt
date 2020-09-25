@@ -1,5 +1,6 @@
 // WITH_RUNTIME
 // KJS_WITH_FULL_RUNTIME
+// FULL_JDK
 import kotlin.test.*
 
 fun box(): String {

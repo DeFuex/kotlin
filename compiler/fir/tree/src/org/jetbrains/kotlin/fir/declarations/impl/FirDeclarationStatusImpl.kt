@@ -1,21 +1,24 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.fir.declarations.impl
 
 import org.jetbrains.kotlin.descriptors.Modality
+import org.jetbrains.kotlin.fir.FirPureAbstractElement
+import org.jetbrains.kotlin.fir.FirSourceElement
 import org.jetbrains.kotlin.descriptors.Visibility
-import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.FirDeclarationStatus
 import org.jetbrains.kotlin.fir.declarations.impl.FirDeclarationStatusImpl.Modifier.*
+import org.jetbrains.kotlin.fir.visitors.FirTransformer
+import org.jetbrains.kotlin.fir.visitors.FirVisitor
 
 open class FirDeclarationStatusImpl(
-    final override val session: FirSession,
     override val visibility: Visibility,
     override val modality: Modality?
-) : FirDeclarationStatus {
+) : FirPureAbstractElement(), FirDeclarationStatus {
+    override val source: FirSourceElement? get() = null
     protected var flags: Int = 0
 
     private operator fun get(modifier: Modifier): Boolean = (flags and modifier.mask) != 0
@@ -112,6 +115,30 @@ open class FirDeclarationStatusImpl(
             this[SUSPEND] = value
         }
 
+    override var isStatic: Boolean
+        get() = this[STATIC]
+        set(value) {
+            this[STATIC] = value
+        }
+
+    override var isFromSealedClass: Boolean
+        get() = this[FROM_SEALED]
+        set(value) {
+            this[FROM_SEALED] = value
+        }
+
+    override var isFromEnumClass: Boolean
+        get() = this[FROM_ENUM]
+        set(value) {
+            this[FROM_ENUM] = value
+        }
+
+    override var isFun: Boolean
+        get() = this[FUN]
+        set(value) {
+            this[FUN] = value
+        }
+
     private enum class Modifier(val mask: Int) {
         EXPECT(0x1),
         ACTUAL(0x2),
@@ -126,10 +153,20 @@ open class FirDeclarationStatusImpl(
         INNER(0x400),
         COMPANION(0x800),
         DATA(0x1000),
-        SUSPEND(0x2000)
+        SUSPEND(0x2000),
+        STATIC(0x4000),
+        FROM_SEALED(0x8000),
+        FROM_ENUM(0x10000),
+        FUN(0x20000)
+    }
+
+    override fun <R, D> acceptChildren(visitor: FirVisitor<R, D>, data: D) {}
+
+    override fun <D> transformChildren(transformer: FirTransformer<D>, data: D): FirDeclarationStatusImpl {
+        return this
     }
 
     fun resolved(visibility: Visibility, modality: Modality): FirDeclarationStatus {
-        return FirResolvedDeclarationStatusImpl(session, visibility, modality, flags)
+        return FirResolvedDeclarationStatusImpl(visibility, modality, flags)
     }
 }

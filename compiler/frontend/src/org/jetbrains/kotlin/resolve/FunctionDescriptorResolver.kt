@@ -16,12 +16,10 @@
 
 package org.jetbrains.kotlin.resolve
 
+import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns
-import org.jetbrains.kotlin.builtins.getReceiverTypeFromFunctionType
-import org.jetbrains.kotlin.builtins.getValueParameterTypesFromFunctionType
-import org.jetbrains.kotlin.builtins.isBuiltinFunctionalType
-import org.jetbrains.kotlin.config.AnalysisFlags
+import com.intellij.util.AstLoadingFilter
+import org.jetbrains.kotlin.builtins.*
 import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.contracts.description.ContractProviderKey
@@ -67,7 +65,6 @@ import org.jetbrains.kotlin.types.expressions.ExpressionTypingUtils
 import org.jetbrains.kotlin.types.expressions.ExpressionTypingUtils.isFunctionExpression
 import org.jetbrains.kotlin.types.expressions.ExpressionTypingUtils.isFunctionLiteral
 import org.jetbrains.kotlin.types.typeUtil.replaceAnnotations
-import org.jetbrains.kotlin.util.AstLoadingFilter
 import java.util.*
 
 class FunctionDescriptorResolver(
@@ -215,7 +212,7 @@ class FunctionDescriptorResolver(
         }
 
         val extensionReceiver = receiverType?.let {
-            val splitter = AnnotationSplitter.create(storageManager, receiverType.annotations, EnumSet.of(AnnotationUseSiteTarget.RECEIVER))
+            val splitter = AnnotationSplitter(storageManager, receiverType.annotations, EnumSet.of(AnnotationUseSiteTarget.RECEIVER))
             DescriptorFactory.createExtensionReceiverParameterForCallable(
                 functionDescriptor, it, splitter.getAnnotationsForTarget(AnnotationUseSiteTarget.RECEIVER)
             )
@@ -257,16 +254,15 @@ class FunctionDescriptorResolver(
     ): LazyContractProvider? {
         if (function !is KtNamedFunction) return null
 
-        val isContractsEnabled = languageVersionSettings.supportsFeature(LanguageFeature.AllowContractsForCustomFunctions) ||
-                // We need to enable contracts if we're compiling "kotlin"-package to be able to ship contracts in stdlib in 1.2
-                languageVersionSettings.getFlag(AnalysisFlags.allowKotlinPackage)
+        val isContractsEnabled = languageVersionSettings.supportsFeature(LanguageFeature.AllowContractsForCustomFunctions)
+        val isAllowedOnMembers = languageVersionSettings.supportsFeature(LanguageFeature.AllowContractsForNonOverridableMembers)
 
-        if (!isContractsEnabled || !function.mayHaveContract()) return null
+        if (!isContractsEnabled || !function.mayHaveContract(isAllowedOnMembers)) return null
 
-        return LazyContractProvider {
-            AstLoadingFilter.forceAllowTreeLoading(function.containingFile) {
+        return LazyContractProvider(storageManager) {
+            AstLoadingFilter.forceAllowTreeLoading(function.containingFile, ThrowableComputable {
                 expressionTypingServices.getBodyExpressionType(trace, scope, dataFlowInfo, function, functionDescriptor)
-            }
+            })
         }
     }
 
@@ -310,7 +306,7 @@ class FunctionDescriptorResolver(
 
     private fun KotlinType.removeParameterNameAnnotation(): KotlinType {
         if (this is TypeUtils.SpecialType) return this
-        val parameterNameAnnotation = annotations.findAnnotation(KotlinBuiltIns.FQ_NAMES.parameterName) ?: return this
+        val parameterNameAnnotation = annotations.findAnnotation(StandardNames.FqNames.parameterName) ?: return this
         return replaceAnnotations(Annotations.create(annotations.filter { it != parameterNameAnnotation }))
     }
 

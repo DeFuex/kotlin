@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.gradle.plugin.mpp
@@ -10,7 +10,6 @@ import org.gradle.api.artifacts.*
 import org.gradle.api.component.ComponentWithCoordinates
 import org.gradle.api.component.ComponentWithVariants
 import org.gradle.api.internal.component.SoftwareComponentInternal
-import org.gradle.api.internal.component.UsageContext
 import org.gradle.api.publish.maven.MavenPublication
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.KotlinTarget
@@ -61,10 +60,12 @@ open class KotlinVariant(
 ) : KotlinTargetComponentWithPublication, SoftwareComponentInternal {
     var componentName: String? = null
 
+    var artifactTargetName: String = target.targetName
+
     final override val target: KotlinTarget
         get() = producingCompilation.target
 
-    override fun getUsages(): Set<UsageContext> = usages
+    override fun getUsages(): Set<KotlinUsageContext> = usages
 
     override fun getName(): String = componentName ?: producingCompilation.target.targetName
 
@@ -77,7 +78,7 @@ open class KotlinVariant(
     internal var defaultArtifactIdSuffix: String? = null
 
     override val defaultArtifactId: String
-        get() = dashSeparatedName(target.project.name, target.targetName.toLowerCase(), defaultArtifactIdSuffix)
+        get() = dashSeparatedName(target.project.name, artifactTargetName.toLowerCase(), defaultArtifactIdSuffix)
 
     override var publicationDelegate: MavenPublication? = null
 }
@@ -91,36 +92,9 @@ open class KotlinVariantWithCoordinates(
 class KotlinVariantWithMetadataVariant(
     producingCompilation: KotlinCompilation<*>,
     usages: Set<DefaultKotlinUsageContext>,
-    private val metadataTarget: KotlinTarget
+    internal val metadataTarget: AbstractKotlinTarget
 ) : KotlinVariantWithCoordinates(producingCompilation, usages), ComponentWithVariants {
     override fun getVariants() = metadataTarget.components
-}
-
-class KotlinVariantWithMetadataDependency(
-    producingCompilation: KotlinCompilation<*>,
-    val originalUsages: Set<DefaultKotlinUsageContext>,
-    private val metadataTarget: KotlinTarget
-) : KotlinVariantWithCoordinates(producingCompilation, originalUsages) {
-    override fun getUsages(): Set<UsageContext> = originalUsages.mapTo(mutableSetOf()) { usageContext ->
-        KotlinUsageContextWithAdditionalDependencies(usageContext, setOf(metadataDependency()))
-    }
-
-    private fun metadataDependency(): ModuleDependency {
-        val metadataPublication = (metadataTarget.components.single() as KotlinTargetComponentWithPublication).publicationDelegate!!
-        val metadataGroupId = metadataPublication.groupId
-        val metadataArtifactId = metadataPublication.artifactId
-        val metadataVersion = metadataPublication.version
-        return target.project.dependencies.module("$metadataGroupId:$metadataArtifactId:$metadataVersion") as ModuleDependency
-    }
-
-    class KotlinUsageContextWithAdditionalDependencies(
-        val parentUsageContext: DefaultKotlinUsageContext,
-        val additionalDependencies: Set<ModuleDependency>
-    ) : KotlinUsageContext by parentUsageContext {
-        override fun getDependencies() = parentUsageContext.dependencies + additionalDependencies
-
-        override fun getGlobalExcludes(): Set<ExcludeRule> = emptySet()
-    }
 }
 
 class JointAndroidKotlinTargetComponent(
@@ -130,7 +104,7 @@ class JointAndroidKotlinTargetComponent(
     override val sourcesArtifacts: Set<PublishArtifact>
     ) : KotlinTargetComponentWithCoordinatesAndPublication, SoftwareComponentInternal {
 
-    override fun getUsages(): Set<UsageContext> = nestedVariants.flatMap { it.usages }.toSet()
+    override fun getUsages(): Set<KotlinUsageContext> = nestedVariants.flatMap { it.usages }.toSet()
 
     override fun getName(): String = lowerCamelCaseName(target.targetName, *flavorNames.toTypedArray())
 

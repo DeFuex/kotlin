@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.gradle.util
@@ -14,18 +14,21 @@ private val unresolvedConfigurationRegex = "${Regex.escape(UNRESOLVED_MARKER)}(.
 
 fun BaseGradleIT.Project.testResolveAllConfigurations(
     subproject: String? = null,
+    skipSetup: Boolean = false,
     excludePredicate: String = "false",
     withUnresolvedConfigurationNames: BaseGradleIT.CompiledProject.(List<String>) -> Unit = { assertTrue("Unresolved configurations: $it") { it.isEmpty() } }
 ) = with(testCase) {
 
-    setupWorkingDir()
-    gradleBuildScript(subproject).run {
-        val taskCode = when (extension) {
-            "gradle" -> generateResolveAllConfigurationsTask(excludePredicate)
-            "kts" -> generateResolveAllConfigurationsTaskKts(excludePredicate)
-            else -> error("Unexpected build script extension $extension")
+    if (!skipSetup) {
+        setupWorkingDir()
+        gradleBuildScript(subproject).run {
+            val taskCode = when (extension) {
+                "gradle" -> generateResolveAllConfigurationsTask(excludePredicate)
+                "kts" -> generateResolveAllConfigurationsTaskKts(excludePredicate)
+                else -> error("Unexpected build script extension $extension")
+            }
+            appendText("\n" + taskCode)
         }
-        appendText("\n" + taskCode)
     }
 
     build(RESOLVE_ALL_CONFIGURATIONS_TASK_NAME) {

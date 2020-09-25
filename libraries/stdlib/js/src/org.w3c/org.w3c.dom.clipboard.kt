@@ -1,12 +1,11 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license 
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 // NOTE: THIS FILE IS AUTO-GENERATED, DO NOT EDIT!
-// See libraries/tools/idl2k for details
+// See github.com/kotlin/dukat for details
 
-@file:Suppress("NESTED_CLASS_IN_EXTERNAL_INTERFACE")
 package org.w3c.dom.clipboard
 
 import kotlin.js.*
@@ -14,8 +13,10 @@ import org.khronos.webgl.*
 import org.w3c.css.masking.*
 import org.w3c.dom.*
 import org.w3c.dom.css.*
+import org.w3c.dom.encryptedmedia.*
 import org.w3c.dom.events.*
 import org.w3c.dom.mediacapture.*
+import org.w3c.dom.mediasource.*
 import org.w3c.dom.parsing.*
 import org.w3c.dom.pointerevents.*
 import org.w3c.dom.svg.*
@@ -36,12 +37,10 @@ public external interface ClipboardEventInit : EventInit {
 @kotlin.internal.InlineOnly
 public inline fun ClipboardEventInit(clipboardData: DataTransfer? = null, bubbles: Boolean? = false, cancelable: Boolean? = false, composed: Boolean? = false): ClipboardEventInit {
     val o = js("({})")
-
     o["clipboardData"] = clipboardData
     o["bubbles"] = bubbles
     o["cancelable"] = cancelable
     o["composed"] = composed
-
     return o
 }
 
@@ -50,6 +49,13 @@ public inline fun ClipboardEventInit(clipboardData: DataTransfer? = null, bubble
  */
 public external open class ClipboardEvent(type: String, eventInitDict: ClipboardEventInit = definedExternally) : Event {
     open val clipboardData: DataTransfer?
+
+    companion object {
+        val NONE: Short
+        val CAPTURING_PHASE: Short
+        val AT_TARGET: Short
+        val BUBBLING_PHASE: Short
+    }
 }
 
 /**
@@ -71,9 +77,6 @@ public external interface ClipboardPermissionDescriptor {
 @kotlin.internal.InlineOnly
 public inline fun ClipboardPermissionDescriptor(allowWithoutGesture: Boolean? = false): ClipboardPermissionDescriptor {
     val o = js("({})")
-
     o["allowWithoutGesture"] = allowWithoutGesture
-
     return o
 }
-

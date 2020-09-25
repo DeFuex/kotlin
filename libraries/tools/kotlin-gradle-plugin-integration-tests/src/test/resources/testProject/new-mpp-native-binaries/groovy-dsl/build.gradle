@@ -20,15 +20,10 @@ kotlin {
         commonMain {
             dependencies {
                 api "org.jetbrains.kotlin:kotlin-stdlib-common"
-            }
-        }
-
-        iosMain {
-            dependencies {
                 api(project(":exported"))
             }
         }
-
+        
         commonTest {
             dependencies {
                 api "org.jetbrains.kotlin:kotlin-test-annotations-common"
@@ -42,6 +37,8 @@ kotlin {
         mingwX64("mingw64")
 
         configure([macos64, linux64, mingw64]) {
+            compilations.all { kotlinOptions.verbose = true }
+            compilations.test.kotlinOptions.freeCompilerArgs += "-nowarn"
             binaries {
 
                 executable()                  // Executable with default name.
@@ -58,10 +55,18 @@ kotlin {
 
                 executable("test2", [RELEASE]) {
                     compilation = compilations["test"]
+                    freeCompilerArgs += "-tr"
+                    linkTask.kotlinOptions {
+                        freeCompilerArgs += "-Xtime"
+                    }
                 }
 
-                sharedLib([RELEASE])
-                staticLib([RELEASE])
+                sharedLib([RELEASE]) {
+                    export project(':exported')
+                }
+                staticLib([RELEASE]) {
+                    export project(':exported')
+                }
             }
             // Check that we can access binaries/tasks:
             // Just by name:
@@ -78,7 +83,13 @@ kotlin {
                     embedBitcode = 'DISABLE'
                     linkerOpts = ['-L.']
                     freeCompilerArgs = ["-Xtime"]
+                    isStatic = true
                 }
+            }
+        }
+        iosX64("iosSim") {
+            binaries {
+                framework()
             }
         }
     }

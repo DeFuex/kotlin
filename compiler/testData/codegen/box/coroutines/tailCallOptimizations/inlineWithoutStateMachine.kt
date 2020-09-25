@@ -1,11 +1,10 @@
-// IGNORE_BACKEND: JVM_IR
 // WITH_RUNTIME
 // WITH_COROUTINES
 // COMMON_COROUTINES_TEST
-import helpers.*
 // CHECK_BYTECODE_LISTING
 // CHECK_NEW_COUNT: function=suspendHere count=0
 // CHECK_NEW_COUNT: function=complexSuspend count=0
+import helpers.*
 import COROUTINES_PACKAGE.*
 import COROUTINES_PACKAGE.intrinsics.*
 
@@ -14,6 +13,7 @@ inline suspend fun suspendThere(v: String): String = suspendCoroutineUnintercept
     COROUTINE_SUSPENDED
 }
 
+// TODO: Somehow we still generate continuations for tail-call function, but we don't use them.
 suspend fun suspendHere(): String = suspendThere("O")
 
 // There is a kind of redundant state machine generated for complexSuspend:

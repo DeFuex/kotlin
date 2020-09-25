@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.generators.builtins.ranges
@@ -16,7 +16,6 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
             "minus" to "Subtracts the other value from this value.",
             "times" to "Multiplies this value by the other value.",
             "div" to "Divides this value by the other value.",
-            "mod" to "Calculates the remainder of dividing this value by the other value.",
             "rem" to "Calculates the remainder of dividing this value by the other value."
         )
         internal val unaryOperators: Map<String, String> = mapOf(
@@ -32,6 +31,19 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
             "and" to "Performs a bitwise AND operation between the two values.",
             "or" to "Performs a bitwise OR operation between the two values.",
             "xor" to "Performs a bitwise XOR operation between the two values.")
+
+
+        internal fun shiftOperatorsDocDetail(kind: PrimitiveType): String {
+            val bitsUsed = when (kind) {
+                PrimitiveType.INT -> "five"
+                PrimitiveType.LONG -> "six"
+                else -> throw IllegalArgumentException("Bit shift operation is not implemented for $kind")
+            }
+            return """ 
+                * Note that only the $bitsUsed lowest-order bits of the [bitCount] are used as the shift distance.
+                * The shift distance actually used is therefore always in the range `0..${kind.bitSize - 1}`.
+                """
+        }
     }
     private val typeDescriptions: Map<PrimitiveType, String> = mapOf(
             PrimitiveType.DOUBLE to "double-precision 64-bit IEEE 754 floating point number",
@@ -48,8 +60,8 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
         PrimitiveType.BYTE -> listOf(java.lang.Byte.MIN_VALUE, java.lang.Byte.MAX_VALUE)
         PrimitiveType.SHORT -> listOf(java.lang.Short.MIN_VALUE, java.lang.Short.MAX_VALUE)
         PrimitiveType.LONG -> listOf((java.lang.Long.MIN_VALUE + 1).toString() + "L - 1L", java.lang.Long.MAX_VALUE.toString() + "L")
-//        PrimitiveType.DOUBLE -> listOf(java.lang.Double.MIN_VALUE, java.lang.Double.MAX_VALUE, "1.0/0.0", "-1.0/0.0", "0.0/0.0")
-//        PrimitiveType.FLOAT -> listOf(java.lang.Float.MIN_VALUE, java.lang.Float.MAX_VALUE, "1.0F/0.0F", "-1.0F/0.0F", "0.0F/0.0F").map { it as? String ?: "${it}F" }
+        PrimitiveType.DOUBLE -> listOf(java.lang.Double.MIN_VALUE, java.lang.Double.MAX_VALUE, "1.0/0.0", "-1.0/0.0", "-(0.0/0.0)")
+        PrimitiveType.FLOAT -> listOf(java.lang.Float.MIN_VALUE, java.lang.Float.MAX_VALUE, "1.0F/0.0F", "-1.0F/0.0F", "-(0.0F/0.0F)").map { it as? String ?: "${it}F" }
         else -> throw IllegalArgumentException("type: $type")
     }
 
@@ -61,32 +73,32 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
 
             out.print("    companion object {")
             if (kind == PrimitiveType.FLOAT || kind == PrimitiveType.DOUBLE) {
-                //val (minValue, maxValue, posInf, negInf, nan) = primitiveConstants(kind)
+                val (minValue, maxValue, posInf, negInf, nan) = primitiveConstants(kind)
                 out.println("""
         /**
          * A constant holding the smallest *positive* nonzero value of $className.
          */
-        public val MIN_VALUE: $className
+        public const val MIN_VALUE: $className = $minValue
 
         /**
          * A constant holding the largest positive finite value of $className.
          */
-        public val MAX_VALUE: $className
+        public const val MAX_VALUE: $className = $maxValue
 
         /**
          * A constant holding the positive infinity value of $className.
          */
-        public val POSITIVE_INFINITY: $className
+        public const val POSITIVE_INFINITY: $className = $posInf
 
         /**
          * A constant holding the negative infinity value of $className.
          */
-        public val NEGATIVE_INFINITY: $className
+        public const val NEGATIVE_INFINITY: $className = $negInf
 
         /**
          * A constant holding the "not a number" value of $className.
          */
-        public val NaN: $className""")
+        public const val NaN: $className = $nan""")
             }
             if (kind == PrimitiveType.INT || kind == PrimitiveType.LONG || kind == PrimitiveType.SHORT || kind == PrimitiveType.BYTE) {
                 val (minValue, maxValue) = primitiveConstants(kind)
@@ -101,19 +113,20 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
          */
         public const val MAX_VALUE: $className = $maxValue""")
             }
-            if (kind.byteSize != null) {
+            if (kind.isIntegral || kind.isFloatingPoint) {
+                val sizeSince = if (kind.isFloatingPoint) "1.4" else "1.3"
                 out.println("""
         /**
          * The number of bytes used to represent an instance of $className in a binary form.
          */
-        @SinceKotlin("1.3")
+        @SinceKotlin("$sizeSince")
         public const val SIZE_BYTES: Int = ${kind.byteSize}
 
         /**
          * The number of bits used to represent an instance of $className in a binary form.
          */
-        @SinceKotlin("1.3")
-        public const val SIZE_BITS: Int = ${kind.byteSize * 8}""")
+        @SinceKotlin("$sizeSince")
+        public const val SIZE_BITS: Int = ${kind.bitSize}""")
             }
             out.println("""    }""")
 
@@ -124,13 +137,13 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
             generateRangeTo(kind)
 
             if (kind == PrimitiveType.INT || kind == PrimitiveType.LONG) {
-                generateBitShiftOperators(className)
+                generateBitShiftOperators(kind)
             }
             if (kind == PrimitiveType.INT || kind == PrimitiveType.LONG /* || kind == PrimitiveType.BYTE || kind == PrimitiveType.SHORT */) {
                 generateBitwiseOperators(className, since = if (kind == PrimitiveType.BYTE || kind == PrimitiveType.SHORT) "1.1" else null)
             }
 
-            generateConversions()
+            generateConversions(kind)
 
             out.println("}\n")
         }
@@ -172,9 +185,6 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
             when (name) {
                 "rem" ->
                     out.println("    @SinceKotlin(\"1.1\")")
-
-                "mod" ->
-                    out.println("    @Deprecated(\"Use rem(other) instead\", ReplaceWith(\"rem(other)\"), DeprecationLevel.ERROR)")
             }
             out.println("    public operator fun $name(other: ${otherKind.capitalized}): ${returnType.capitalized}")
         }
@@ -205,10 +215,17 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
         out.println()
     }
 
-    private fun generateBitShiftOperators(className: String) {
+    private fun generateBitShiftOperators(kind: PrimitiveType) {
+        val className = kind.capitalized
+        val detail = shiftOperatorsDocDetail(kind)
         for ((name, doc) in shiftOperators) {
-            out.println("    /** $doc */")
+            out.println("    /**")
+            out.println("     * $doc")
+            out.println("     *")
+            out.println(detail.replaceIndent("     "))
+            out.println("     */")
             out.println("    public infix fun $name(bitCount: Int): $className")
+            out.println()
         }
     }
     private fun generateBitwiseOperators(className: String, since: String?) {
@@ -223,10 +240,160 @@ class GeneratePrimitives(out: PrintWriter) : BuiltInsSourceGenerator(out) {
         out.println()
     }
 
-    private fun generateConversions() {
+
+    private fun compareByDomainCapacity(type1: PrimitiveType, type2: PrimitiveType): Int =
+        if (type1.isIntegral && type2.isIntegral) type1.byteSize - type2.byteSize else type1.ordinal - type2.ordinal
+
+    private fun docForConversionFromFloatingToIntegral(fromFloating: PrimitiveType, toIntegral: PrimitiveType): String {
+        require(fromFloating.isFloatingPoint)
+        require(toIntegral.isIntegral)
+
+        val thisName = fromFloating.capitalized
+        val otherName = toIntegral.capitalized
+
+        return if (compareByDomainCapacity(toIntegral, PrimitiveType.INT) < 0) {
+            """
+             * The resulting `$otherName` value is equal to `this.toInt().to$otherName()`.
+             */
+            """
+        } else {
+            """
+             * The fractional part, if any, is rounded down towards zero.
+             * Returns zero if this `$thisName` value is `NaN`, [$otherName.MIN_VALUE] if it's less than `$otherName.MIN_VALUE`,
+             * [$otherName.MAX_VALUE] if it's bigger than `$otherName.MAX_VALUE`.
+             */
+            """
+        }
+    }
+
+    private fun docForConversionFromFloatingToFloating(fromFloating: PrimitiveType, toFloating: PrimitiveType): String {
+        require(fromFloating.isFloatingPoint)
+        require(toFloating.isFloatingPoint)
+
+        val thisName = fromFloating.capitalized
+        val otherName = toFloating.capitalized
+
+        return if (compareByDomainCapacity(toFloating, fromFloating) < 0) {
+            """
+             * The resulting value is the closest `$otherName` to this `$thisName` value.
+             * In case when this `$thisName` value is exactly between two `$otherName`s,
+             * the one with zero at least significant bit of mantissa is selected.
+             */
+            """
+        } else {
+            """
+             * The resulting `$otherName` value represents the same numerical value as this `$thisName`.
+             */
+            """
+        }
+    }
+
+    private fun docForConversionFromIntegralToIntegral(fromIntegral: PrimitiveType, toIntegral: PrimitiveType): String {
+        require(fromIntegral.isIntegral)
+        require(toIntegral.isIntegral)
+
+        val thisName = fromIntegral.capitalized
+        val otherName = toIntegral.capitalized
+
+        return if (toIntegral == PrimitiveType.CHAR) {
+            if (fromIntegral == PrimitiveType.SHORT) {
+                """
+                * The resulting `Char` code is equal to this value reinterpreted as an unsigned number,
+                * i.e. it has the same binary representation as this `Short`.
+                */
+                """
+            } else if (fromIntegral == PrimitiveType.BYTE) {
+                """
+                * If this value is non-negative, the resulting `Char` code is equal to this value.
+                *
+                * The least significant 8 bits of the resulting `Char` code are the same as the bits of this `Byte` value,
+                * whereas the most significant 8 bits are filled with the sign bit of this value.
+                */
+                """
+            } else {
+                """
+                * If this value is in the range of `Char` codes `Char.MIN_VALUE..Char.MAX_VALUE`,
+                * the resulting `Char` code is equal to this value.
+                *
+                * The resulting `Char` code is represented by the least significant 16 bits of this `$thisName` value.
+                */
+                """
+            }
+        } else if (compareByDomainCapacity(toIntegral, fromIntegral) < 0) {
+            """
+             * If this value is in [$otherName.MIN_VALUE]..[$otherName.MAX_VALUE], the resulting `$otherName` value represents
+             * the same numerical value as this `$thisName`.
+             *
+             * The resulting `$otherName` value is represented by the least significant ${toIntegral.bitSize} bits of this `$thisName` value.
+             */
+            """
+        } else {
+            """
+             * The resulting `$otherName` value represents the same numerical value as this `$thisName`.
+             *
+             * The least significant ${fromIntegral.bitSize} bits of the resulting `$otherName` value are the same as the bits of this `$thisName` value,
+             * whereas the most significant ${toIntegral.bitSize - fromIntegral.bitSize} bits are filled with the sign bit of this value.
+             */
+            """
+        }
+    }
+
+    private fun docForConversionFromIntegralToFloating(fromIntegral: PrimitiveType, toFloating: PrimitiveType): String {
+        require(fromIntegral.isIntegral)
+        require(toFloating.isFloatingPoint)
+
+        val thisName = fromIntegral.capitalized
+        val otherName = toFloating.capitalized
+
+        return if (fromIntegral == PrimitiveType.LONG || fromIntegral == PrimitiveType.INT && toFloating == PrimitiveType.FLOAT) {
+            """
+             * The resulting value is the closest `$otherName` to this `$thisName` value.
+             * In case when this `$thisName` value is exactly between two `$otherName`s,
+             * the one with zero at least significant bit of mantissa is selected.
+             */
+            """
+        } else {
+            """
+             * The resulting `$otherName` value represents the same numerical value as this `$thisName`.
+             */
+            """
+        }
+    }
+
+    private fun generateConversions(kind: PrimitiveType) {
+        fun isConversionDeprecated(otherKind: PrimitiveType): Boolean {
+            return kind in PrimitiveType.floatingPoint && otherKind in listOf(PrimitiveType.BYTE, PrimitiveType.SHORT)
+        }
+
+        val thisName = kind.capitalized
         for (otherKind in PrimitiveType.exceptBoolean) {
-            val name = otherKind.capitalized
-            out.println("    public override fun to$name(): $name")
+            val otherName = otherKind.capitalized
+            val doc = if (kind == otherKind) {
+                "    /** Returns this value. */"
+            } else {
+                val detail = if (kind in PrimitiveType.integral) {
+                    if (otherKind.isIntegral) {
+                        docForConversionFromIntegralToIntegral(kind, otherKind)
+                    } else {
+                        docForConversionFromIntegralToFloating(kind, otherKind)
+                    }
+                } else {
+                    if (otherKind.isIntegral) {
+                        docForConversionFromFloatingToIntegral(kind, otherKind)
+                    } else {
+                        docForConversionFromFloatingToFloating(kind, otherKind)
+                    }
+                }
+
+                "    /**\n     * Converts this [$thisName] value to [$otherName].\n     *\n" + detail.replaceIndent("     ")
+            }
+            out.println(doc)
+
+            if (isConversionDeprecated(otherKind)) {
+                out.println("    @Deprecated(\"Unclear conversion. To achieve the same result convert to Int explicitly and then to $otherName.\", ReplaceWith(\"toInt().to$otherName()\"))")
+            }
+
+            out.println("    public override fun to$otherName(): $otherName")
         }
     }
 

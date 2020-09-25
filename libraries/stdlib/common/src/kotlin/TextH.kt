@@ -1,31 +1,11 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package kotlin.text
 
-expect interface Appendable {
-    fun append(c: Char): Appendable
-    fun append(csq: CharSequence?): Appendable
-    fun append(csq: CharSequence?, start: Int, end: Int): Appendable
-}
-
-expect class StringBuilder : Appendable, CharSequence {
-    constructor()
-    constructor(capacity: Int)
-    constructor(content: CharSequence)
-
-    override val length: Int
-    override operator fun get(index: Int): Char
-    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence
-
-    fun reverse(): StringBuilder
-    override fun append(c: Char): StringBuilder
-    override fun append(csq: CharSequence?): StringBuilder
-    override fun append(csq: CharSequence?, start: Int, end: Int): StringBuilder
-    fun append(obj: Any?): StringBuilder
-}
+import kotlin.internal.LowPriorityInOverloadResolution
 
 expect class Regex {
     constructor(pattern: String)
@@ -53,6 +33,8 @@ expect class Regex {
 
     /**
      * Returns a sequence of all occurrences of a regular expression within the [input] string, beginning at the specified [startIndex].
+     *
+     * @sample samples.text.Regexps.findAll
      */
     fun findAll(input: CharSequence, startIndex: Int = 0): Sequence<MatchResult>
 
@@ -96,6 +78,7 @@ expect fun Char.isLowSurrogate(): Boolean
  * Converts the characters in the specified array to a string.
  */
 @SinceKotlin("1.2")
+@Deprecated("Use CharArray.concatToString() instead", ReplaceWith("chars.concatToString()"))
 public expect fun String(chars: CharArray): String
 
 /**
@@ -105,7 +88,104 @@ public expect fun String(chars: CharArray): String
  * or `offset + length` is out of [chars] array bounds.
  */
 @SinceKotlin("1.2")
+@Deprecated("Use CharArray.concatToString(startIndex, endIndex) instead", ReplaceWith("chars.concatToString(offset, offset + length)"))
 public expect fun String(chars: CharArray, offset: Int, length: Int): String
+
+/**
+ * Concatenates characters in this [CharArray] into a String.
+ */
+@SinceKotlin("1.4")
+@WasExperimental(ExperimentalStdlibApi::class)
+public expect fun CharArray.concatToString(): String
+
+/**
+ * Concatenates characters in this [CharArray] or its subrange into a String.
+ *
+ * @param startIndex the beginning (inclusive) of the subrange of characters, 0 by default.
+ * @param endIndex the end (exclusive) of the subrange of characters, size of this array by default.
+ *
+ * @throws IndexOutOfBoundsException if [startIndex] is less than zero or [endIndex] is greater than the size of this array.
+ * @throws IllegalArgumentException if [startIndex] is greater than [endIndex].
+ */
+@SinceKotlin("1.4")
+@WasExperimental(ExperimentalStdlibApi::class)
+public expect fun CharArray.concatToString(startIndex: Int = 0, endIndex: Int = this.size): String
+
+/**
+ * Returns a [CharArray] containing characters of this string.
+ */
+@SinceKotlin("1.4")
+@WasExperimental(ExperimentalStdlibApi::class)
+public expect fun String.toCharArray(): CharArray
+
+/**
+ * Returns a [CharArray] containing characters of this string or its substring.
+ *
+ * @param startIndex the beginning (inclusive) of the substring, 0 by default.
+ * @param endIndex the end (exclusive) of the substring, length of this string by default.
+ *
+ * @throws IndexOutOfBoundsException if [startIndex] is less than zero or [endIndex] is greater than the length of this string.
+ * @throws IllegalArgumentException if [startIndex] is greater than [endIndex].
+ */
+@SinceKotlin("1.4")
+@WasExperimental(ExperimentalStdlibApi::class)
+public expect fun String.toCharArray(startIndex: Int = 0, endIndex: Int = this.length): CharArray
+
+/**
+ * Decodes a string from the bytes in UTF-8 encoding in this array.
+ *
+ * Malformed byte sequences are replaced by the replacement char `\uFFFD`.
+ */
+@SinceKotlin("1.4")
+@WasExperimental(ExperimentalStdlibApi::class)
+public expect fun ByteArray.decodeToString(): String
+
+/**
+ * Decodes a string from the bytes in UTF-8 encoding in this array or its subrange.
+ *
+ * @param startIndex the beginning (inclusive) of the subrange to decode, 0 by default.
+ * @param endIndex the end (exclusive) of the subrange to decode, size of this array by default.
+ * @param throwOnInvalidSequence specifies whether to throw an exception on malformed byte sequence or replace it by the replacement char `\uFFFD`.
+ *
+ * @throws IndexOutOfBoundsException if [startIndex] is less than zero or [endIndex] is greater than the size of this array.
+ * @throws IllegalArgumentException if [startIndex] is greater than [endIndex].
+ * @throws CharacterCodingException if the byte array contains malformed UTF-8 byte sequence and [throwOnInvalidSequence] is true.
+ */
+@SinceKotlin("1.4")
+@WasExperimental(ExperimentalStdlibApi::class)
+public expect fun ByteArray.decodeToString(
+    startIndex: Int = 0,
+    endIndex: Int = this.size,
+    throwOnInvalidSequence: Boolean = false
+): String
+
+/**
+ * Encodes this string to an array of bytes in UTF-8 encoding.
+ *
+ * Any malformed char sequence is replaced by the replacement byte sequence.
+ */
+@SinceKotlin("1.4")
+@WasExperimental(ExperimentalStdlibApi::class)
+public expect fun String.encodeToByteArray(): ByteArray
+
+/**
+ * Encodes this string or its substring to an array of bytes in UTF-8 encoding.
+ *
+ * @param startIndex the beginning (inclusive) of the substring to encode, 0 by default.
+ * @param endIndex the end (exclusive) of the substring to encode, length of this string by default.
+ * @param throwOnInvalidSequence specifies whether to throw an exception on malformed char sequence or replace.
+ *
+ * @throws IndexOutOfBoundsException if [startIndex] is less than zero or [endIndex] is greater than the length of this string.
+ * @throws IllegalArgumentException if [startIndex] is greater than [endIndex].
+ * @throws CharacterCodingException if this string contains malformed char sequence and [throwOnInvalidSequence] is true.
+ */
+@SinceKotlin("1.4")
+@WasExperimental(ExperimentalStdlibApi::class)
+public expect fun String.encodeToByteArray(
+    startIndex: Int = 0,
+    endIndex: Int = this.length,
+    throwOnInvalidSequence: Boolean = false
+): ByteArray
 
 
 internal expect fun String.nativeIndexOf(str: String, fromIndex: Int): Int
@@ -128,18 +208,27 @@ public expect fun String.toUpperCase(): String
  * @sample samples.text.Strings.toLowerCase
  */
 public expect fun String.toLowerCase(): String
-public expect fun String.capitalize(): String
-public expect fun String.decapitalize(): String
-public expect fun CharSequence.repeat(n: Int): String
-
 
 /**
- * Clears the content of this string builder making it empty.
+ * Returns a copy of this string having its first letter titlecased using the rules of the default locale,
+ * or the original string if it's empty or already starts with a title case letter.
  *
- * @sample samples.text.Strings.clearStringBuilder
+ * The title case of a character is usually the same as its upper case with several exceptions.
+ * The particular list of characters with the special title case form depends on the underlying platform.
+ *
+ * @sample samples.text.Strings.capitalize
  */
-@SinceKotlin("1.3")
-public expect fun StringBuilder.clear(): StringBuilder
+public expect fun String.capitalize(): String
+
+/**
+ * Returns a copy of this string having its first letter lowercased using the rules of the default locale,
+ * or the original string if it's empty or already starts with a lower case letter.
+ *
+ * @sample samples.text.Strings.decapitalize
+ */
+public expect fun String.decapitalize(): String
+
+public expect fun CharSequence.repeat(n: Int): String
 
 
 /**
@@ -215,9 +304,18 @@ public expect val String.Companion.CASE_INSENSITIVE_ORDER: Comparator<String>
 
 
 /**
- * Returns `true` if the contents of this string is equal to the word "true", ignoring case, and `false` otherwise.
+ * Returns `true` if the content of this string is equal to the word "true", ignoring case, and `false` otherwise.
  */
-expect fun String.toBoolean(): Boolean
+@Deprecated("Use Kotlin compiler 1.4 to avoid deprecation warning.")
+@DeprecatedSinceKotlin(hiddenSince = "1.4")
+@kotlin.internal.InlineOnly
+public expect fun String.toBoolean(): Boolean
+
+/**
+ * Returns `true` if this string is not `null` and its content is equal to the word "true", ignoring case, and `false` otherwise.
+ */
+@SinceKotlin("1.4")
+public expect fun String?.toBoolean(): Boolean
 
 /**
  * Parses the string as a signed [Byte] number and returns the result.

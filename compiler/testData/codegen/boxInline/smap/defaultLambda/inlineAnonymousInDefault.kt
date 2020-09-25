@@ -1,6 +1,8 @@
+// IGNORE_BACKEND: JS
+
 // FILE: 1.kt
 // SKIP_INLINE_CHECK_IN: lParams$default
-// IGNORE_BACKEND: JVM_IR
+
 package test
 //A lot of blank lines [Don't delete]
 //A lot of blank lines [Don't delete]
@@ -49,31 +51,19 @@ Kotlin
 *S Kotlin
 *F
 + 1 1.kt
-test/_1Kt
-*L
-1#1,38:1
-34#1,2:39
-*E
-
-SMAP
-1.kt
-Kotlin
-*S Kotlin
-*F
-+ 1 1.kt
 test/_1Kt$lParams$1
 + 2 1.kt
 test/_1Kt
 *L
-1#1,38:1
-29#2:39
+1#1,40:1
+31#2:41
 *E
 *S KotlinDebug
 *F
 + 1 1.kt
 test/_1Kt$lParams$1
 *L
-32#1:39
+34#1:41
 *E
 
 SMAP
@@ -86,8 +76,8 @@ test/_1Kt$kValue$1
 + 2 1.kt
 test/_1Kt$lParams$1
 *L
-1#1,38:1
-32#2:39
+1#1,40:1
+34#2:41
 *E
 
 SMAP
@@ -98,7 +88,7 @@ Kotlin
 + 1 1.kt
 test/_1Kt$kValue$1
 *L
-1#1,38:1
+1#1,40:1
 *E
 
 // FILE: 2.smap-nonseparate-compilation
@@ -116,9 +106,9 @@ test/_1Kt
 test/_1Kt$lParams$1
 *L
 1#1,8:1
-31#2,5:9
-29#2:15
-32#3:14
+33#2,5:9
+31#2:15
+34#3:14
 *E
 *S KotlinDebug
 *F
@@ -145,9 +135,9 @@ test/_1Kt
 test/_1Kt$lParams$1
 *L
 1#1,8:1
-31#2,5:9
-29#2:15
-32#3:14
+33#2,5:9
+31#2:15
+34#3:14
 *E
 *S KotlinDebug
 *F
@@ -169,6 +159,6 @@ test/_1Kt$kValue$1
 + 2 1.kt
 test/_1Kt$lParams$1
 *L
-1#1,38:1
-32#2:39
+1#1,40:1
+34#2:41
 *E

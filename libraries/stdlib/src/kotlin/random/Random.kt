@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package kotlin.random
@@ -36,7 +36,7 @@ public abstract class Random {
     public open fun nextInt(): Int = nextBits(32)
 
     /**
-     * Gets the next random non-negative `Int` from the random number generator not greater than the specified [until] bound.
+     * Gets the next random non-negative `Int` from the random number generator less than the specified [until] bound.
      *
      * Generates an `Int` random value uniformly distributed between `0` (inclusive) and the specified [until] bound (exclusive).
      *
@@ -85,7 +85,7 @@ public abstract class Random {
     public open fun nextLong(): Long = nextInt().toLong().shl(32) + nextInt()
 
     /**
-     * Gets the next random non-negative `Long` from the random number generator not greater than the specified [until] bound.
+     * Gets the next random non-negative `Long` from the random number generator less than the specified [until] bound.
      *
      * Generates a `Long` random value uniformly distributed between `0` (inclusive) and the specified [until] bound (exclusive).
      *
@@ -152,7 +152,7 @@ public abstract class Random {
     public open fun nextDouble(): Double = doubleFromParts(nextBits(26), nextBits(27))
 
     /**
-     * Gets the next random non-negative `Double` from the random number generator not greater than the specified [until] bound.
+     * Gets the next random non-negative `Double` from the random number generator less than the specified [until] bound.
      *
      * Generates a `Double` random value uniformly distributed between 0 (inclusive) and [until] (exclusive).
      *
@@ -261,16 +261,6 @@ public abstract class Random {
         override fun nextBytes(array: ByteArray): ByteArray = defaultRandom.nextBytes(array)
         override fun nextBytes(size: Int): ByteArray = defaultRandom.nextBytes(size)
         override fun nextBytes(array: ByteArray, fromIndex: Int, toIndex: Int): ByteArray = defaultRandom.nextBytes(array, fromIndex, toIndex)
-
-        @Deprecated("Use Default companion object instead", level = DeprecationLevel.HIDDEN)
-        @Suppress("DEPRECATION_ERROR")
-        @kotlin.jvm.JvmField
-        public val Companion: Random.Companion = Random.Companion
-    }
-
-    @Deprecated("Use Default companion object instead", level = DeprecationLevel.HIDDEN)
-    public object Companion : Random() {
-        override fun nextBits(bitCount: Int): Int = Default.nextBits(bitCount)
     }
 }
 
@@ -281,6 +271,8 @@ public abstract class Random {
  *
  * *Note:* Future versions of Kotlin may change the algorithm of this seeded number generator so that it will return
  * a sequence of values different from the current one for a given seed.
+ *
+ * On JVM the returned generator is NOT thread-safe. Do not invoke it from multiple threads without proper synchronization.
  *
  * @sample samples.random.Randoms.seededRandom
  */
@@ -294,6 +286,8 @@ public fun Random(seed: Int): Random = XorWowRandom(seed, seed.shr(31))
  *
  * *Note:* Future versions of Kotlin may change the algorithm of this seeded number generator so that it will return
  * a sequence of values different from the current one for a given seed.
+ *
+ * On JVM the returned generator is NOT thread-safe. Do not invoke it from multiple threads without proper synchronization.
  *
  * @sample samples.random.Randoms.seededRandom
  */
@@ -329,15 +323,17 @@ public fun Random.nextInt(range: IntRange): Int = when {
 @SinceKotlin("1.3")
 public fun Random.nextLong(range: LongRange): Long = when {
     range.isEmpty() -> throw IllegalArgumentException("Cannot get random in empty range: $range")
-    range.last < Long.MAX_VALUE -> nextLong(range.start, range.endInclusive + 1)
-    range.start > Long.MIN_VALUE -> nextLong(range.start - 1, range.endInclusive) + 1
+    range.last < Long.MAX_VALUE -> nextLong(range.first, range.last + 1)
+    range.first > Long.MIN_VALUE -> nextLong(range.first - 1, range.last) + 1
     else -> nextLong()
 }
 
 
 internal expect fun defaultPlatformRandom(): Random
-internal expect fun fastLog2(value: Int): Int //  31 - Integer.numberOfLeadingZeros(value)
 internal expect fun doubleFromParts(hi26: Int, low27: Int): Double
+
+@OptIn(ExperimentalStdlibApi::class)
+internal fun fastLog2(value: Int): Int = 31 - value.countLeadingZeroBits()
 
 /** Takes upper [bitCount] bits (0..32) from this number. */
 internal fun Int.takeUpperBits(bitCount: Int): Int =

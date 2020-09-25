@@ -23,6 +23,7 @@ import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
+import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.JVMConfigurationKeys
 import org.jetbrains.kotlin.javac.JavacWrapper
 import org.jetbrains.kotlin.name.FqName
@@ -73,17 +74,15 @@ abstract class AbstractCompileJavaAgainstKotlinTest : TestCaseWithTmpdir() {
             KotlinTestUtils.compileKotlinWithJava(
                 listOf(javaFile),
                 listOf(ktFile),
-                out, testRootDisposable, javaErrorFile
+                out, testRootDisposable, javaErrorFile, this::updateConfiguration
             )
         }
 
         if (!compiledSuccessfully) return
 
-        val environment = KotlinCoreEnvironment.createForTests(
-            testRootDisposable,
-            newConfiguration(ConfigurationKind.ALL, TestJdkKind.FULL_JDK, getAnnotationsJar(), out),
-            EnvironmentConfigFiles.JVM_CONFIG_FILES
-        )
+        val configuration = newConfiguration(ConfigurationKind.ALL, TestJdkKind.FULL_JDK, getAnnotationsJar(), out)
+        configuration.put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, true)
+        val environment = KotlinCoreEnvironment.createForTests(testRootDisposable, configuration, EnvironmentConfigFiles.JVM_CONFIG_FILES)
         setupLanguageVersionSettingsForCompilerTests(ktFile.readText(), environment)
 
         val analysisResult = JvmResolveUtil.analyze(environment)
@@ -93,6 +92,8 @@ abstract class AbstractCompileJavaAgainstKotlinTest : TestCaseWithTmpdir() {
         val expectedFile = File(ktFilePath.replaceFirst("\\.kt$".toRegex(), ".txt"))
         validateAndCompareDescriptorWithFile(packageView, CONFIGURATION, expectedFile)
     }
+
+    open fun updateConfiguration(configuration: CompilerConfiguration) {}
 
     @Throws(IOException::class)
     fun compileKotlinWithJava(
@@ -107,6 +108,7 @@ abstract class AbstractCompileJavaAgainstKotlinTest : TestCaseWithTmpdir() {
         environment.configuration.put(JVMConfigurationKeys.COMPILE_JAVA, true)
         environment.configuration.put(JVMConfigurationKeys.OUTPUT_DIRECTORY, outDir)
         environment.configuration.put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, MessageCollector.NONE)
+        updateConfiguration(environment.configuration)
         environment.registerJavac(
             javaFiles = javaFiles,
             kotlinFiles = listOf(KotlinTestUtils.loadJetFile(environment.project, ktFiles.first()))
@@ -117,7 +119,6 @@ abstract class AbstractCompileJavaAgainstKotlinTest : TestCaseWithTmpdir() {
             val mkdirs = outDir.mkdirs()
             assert(mkdirs) { "Not created: $outDir" }
         }
-
         return JavacWrapper.getInstance(environment.project).use { it.compile() }
     }
 

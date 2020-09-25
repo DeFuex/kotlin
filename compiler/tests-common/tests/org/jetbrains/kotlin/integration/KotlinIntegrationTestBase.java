@@ -34,15 +34,24 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.config.KotlinCompilerVersion;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
 import org.jetbrains.kotlin.test.TestCaseWithTmpdir;
+import org.jetbrains.kotlin.test.WithMutedInDatabaseRunTest;
+import org.jetbrains.kotlin.utils.KotlinPaths;
 import org.jetbrains.kotlin.utils.PathUtil;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.regex.Pattern;
 
+@WithMutedInDatabaseRunTest
 public abstract class KotlinIntegrationTestBase extends TestCaseWithTmpdir {
     static {
         System.setProperty("java.awt.headless", "true");
+    }
+
+    @Override
+    protected void runTest() throws Throwable {
+        //noinspection Convert2MethodRef
+        KotlinTestUtils.runTestWithThrowable(this, () -> super.runTest());
     }
 
     protected int runJava(@NotNull String testDataDir, @Nullable String logName, @NotNull String... arguments) throws Exception {
@@ -134,9 +143,13 @@ public abstract class KotlinIntegrationTestBase extends TestCaseWithTmpdir {
     }
 
     public static File getCompilerLib() {
-        File file = PathUtil.getKotlinPathsForDistDirectory().getLibPath().getAbsoluteFile();
-        assertTrue("Lib directory doesn't exist. Run 'ant dist'", file.isDirectory());
-        return file;
+        return getKotlinPaths().getLibPath().getAbsoluteFile();
+    }
+
+    public static KotlinPaths getKotlinPaths() {
+        KotlinPaths paths = PathUtil.getKotlinPathsForDistDirectory();
+        assertTrue("Compiler dist not found. Build 'dist' target.", paths.getLibPath().isDirectory());
+        return paths;
     }
 
     private static class OutputListener extends ProcessAdapter {

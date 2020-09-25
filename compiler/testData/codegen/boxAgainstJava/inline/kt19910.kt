@@ -1,4 +1,3 @@
-// IGNORE_BACKEND: JVM_IR
 // FILE: J.java
 // FULL_JDK
 // WITH_RUNTIME
@@ -32,7 +31,7 @@ fun box(): String {
                 }
             })
         }.run()
-    } catch (e: IllegalArgumentException) {
+    } catch (e: NullPointerException) {
         return "OK"
     }
 

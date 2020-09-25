@@ -3,8 +3,6 @@ plugins {
     id("jps-compatible")
 }
 
-jvmTarget = "1.6"
-
 dependencies {
     compile(project(":kotlin-annotations-jvm"))
     compile(project(":compiler:util"))
@@ -12,7 +10,9 @@ dependencies {
     compile(project(":compiler:frontend"))
     compile(project(":compiler:frontend.java"))
     compile(project(":compiler:serialization"))
-    compileOnly(intellijCoreDep()) { includeJars("intellij-core", "annotations", "asm-all", rootProject = rootProject) }
+    api(project(":compiler:backend.common.jvm"))
+    compileOnly(intellijCoreDep()) { includeJars("intellij-core", "asm-all", "guava", rootProject = rootProject) }
+    compileOnly(intellijDep()) { includeJars("trove4j", rootProject = rootProject) }
 }
 
 sourceSets {

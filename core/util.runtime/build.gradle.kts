@@ -10,7 +10,6 @@ javaHome = rootProject.extra["JDK_16"] as String
 
 dependencies {
     compileOnly(kotlinStdlib())
-    compileOnly("org.jetbrains:annotations:13.0")
 }
 
 sourceSets {
@@ -22,6 +21,3 @@ tasks.withType<JavaCompile> {
     sourceCompatibility = "1.6"
     targetCompatibility = "1.6"
 }
-
-if (project.hasProperty("teamcity"))
-tasks["compileJava"].dependsOn(":prepare:build.version:writeCompilerVersion")

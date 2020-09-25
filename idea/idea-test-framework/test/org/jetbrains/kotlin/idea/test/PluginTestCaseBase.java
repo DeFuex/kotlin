@@ -28,6 +28,7 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess;
 import kotlin.jvm.functions.Function0;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.TestOnly;
+import org.jetbrains.kotlin.idea.util.IjPlatformUtil;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
 import org.jetbrains.kotlin.test.TestJdkKind;
 
@@ -53,7 +54,7 @@ public class PluginTestCaseBase {
 
     @NotNull
     private static Sdk getSdk(String sdkHome, String name) {
-        ProjectJdkTable table = ProjectJdkTable.getInstance();
+        ProjectJdkTable table = IjPlatformUtil.getProjectJdkTableSafe();
         Sdk existing = table.findJdk(name);
         if (existing != null) {
             return existing;
@@ -93,7 +94,13 @@ public class PluginTestCaseBase {
     @NotNull
     public static Sdk addJdk(@NotNull Disposable disposable, @NotNull Function0<Sdk> getJdk) {
         Sdk jdk = getJdk.invoke();
-        ApplicationManager.getApplication().runWriteAction(() -> ProjectJdkTable.getInstance().addJdk(jdk, disposable));
+        Sdk[] allJdks = IjPlatformUtil.getProjectJdkTableSafe().getAllJdks();
+        for (Sdk existingJdk : allJdks) {
+            if (existingJdk == jdk) {
+                return existingJdk;
+            }
+        }
+        ApplicationManager.getApplication().runWriteAction(() -> IjPlatformUtil.getProjectJdkTableSafe().addJdk(jdk, disposable));
         return jdk;
     }
 
@@ -120,7 +127,7 @@ public class PluginTestCaseBase {
     @TestOnly
     public static void clearSdkTable(@NotNull Disposable disposable) {
         Disposer.register(disposable, () -> ApplicationManager.getApplication().runWriteAction(() -> {
-            ProjectJdkTable jdkTable = ProjectJdkTable.getInstance();
+            ProjectJdkTable jdkTable = IjPlatformUtil.getProjectJdkTableSafe();
             for (Sdk sdk : jdkTable.getAllJdks()) {
                 jdkTable.removeJdk(sdk);
             }

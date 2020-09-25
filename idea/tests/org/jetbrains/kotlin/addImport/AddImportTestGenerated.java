@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.addImport;
@@ -8,7 +8,6 @@ package org.jetbrains.kotlin.addImport;
 import com.intellij.testFramework.TestDataPath;
 import org.jetbrains.kotlin.test.JUnit3RunnerWithInners;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
-import org.jetbrains.kotlin.test.TargetBackend;
 import org.jetbrains.kotlin.test.TestMetadata;
 import org.junit.runner.RunWith;
 
@@ -22,11 +21,11 @@ import java.util.regex.Pattern;
 @RunWith(JUnit3RunnerWithInners.class)
 public class AddImportTestGenerated extends AbstractAddImportTest {
     private void runTest(String testDataFilePath) throws Exception {
-        KotlinTestUtils.runTest(this::doTest, TargetBackend.ANY, testDataFilePath);
+        KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
     }
 
     public void testAllFilesPresentInAddImport() throws Exception {
-        KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("idea/testData/addImport"), Pattern.compile("^([^.]+)\\.kt$"), TargetBackend.ANY, true);
+        KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("idea/testData/addImport"), Pattern.compile("^([^.]+)\\.kt$"), null, true);
     }
 
     @TestMetadata("CannotImportClass1.kt")
@@ -57,6 +56,11 @@ public class AddImportTestGenerated extends AbstractAddImportTest {
     @TestMetadata("CommentsNoPackageDirective.kt")
     public void testCommentsNoPackageDirective() throws Exception {
         runTest("idea/testData/addImport/CommentsNoPackageDirective.kt");
+    }
+
+    @TestMetadata("ConflictingLocalRef.kt")
+    public void testConflictingLocalRef() throws Exception {
+        runTest("idea/testData/addImport/ConflictingLocalRef.kt");
     }
 
     @TestMetadata("ConflictingNameAppearsAndHasUsage1.kt")
@@ -91,8 +95,7 @@ public class AddImportTestGenerated extends AbstractAddImportTest {
 
     @TestMetadata("ConflictingNameAppearsAndHasUsage7.kt")
     public void testConflictingNameAppearsAndHasUsage7() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/addImport/ConflictingNameAppearsAndHasUsage7.kt");
-        doTest(fileName);
+        runTest("idea/testData/addImport/ConflictingNameAppearsAndHasUsage7.kt");
     }
 
     @TestMetadata("ConflictingNameAppearsButUsageIsQualified.kt")
@@ -137,20 +140,17 @@ public class AddImportTestGenerated extends AbstractAddImportTest {
 
     @TestMetadata("ConflictsExtensions.kt")
     public void testConflictsExtensions() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/addImport/ConflictsExtensions.kt");
-        doTest(fileName);
+        runTest("idea/testData/addImport/ConflictsExtensions.kt");
     }
 
     @TestMetadata("ConflictsExtensions1.kt")
     public void testConflictsExtensions1() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/addImport/ConflictsExtensions1.kt");
-        doTest(fileName);
+        runTest("idea/testData/addImport/ConflictsExtensions1.kt");
     }
 
     @TestMetadata("DoNotDropConflictingOnStar.kt")
     public void testDoNotDropConflictingOnStar() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/addImport/DoNotDropConflictingOnStar.kt");
-        doTest(fileName);
+        runTest("idea/testData/addImport/DoNotDropConflictingOnStar.kt");
     }
 
     @TestMetadata("DropExplicitImports.kt")
@@ -196,6 +196,11 @@ public class AddImportTestGenerated extends AbstractAddImportTest {
     @TestMetadata("ImportFromObject.kt")
     public void testImportFromObject() throws Exception {
         runTest("idea/testData/addImport/ImportFromObject.kt");
+    }
+
+    @TestMetadata("ImportFromRoot.kt")
+    public void testImportFromRoot() throws Exception {
+        runTest("idea/testData/addImport/ImportFromRoot.kt");
     }
 
     @TestMetadata("ImportFunctionBug.kt")

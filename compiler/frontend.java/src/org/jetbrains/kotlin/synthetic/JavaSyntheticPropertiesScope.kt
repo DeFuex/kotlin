@@ -278,15 +278,15 @@ class JavaSyntheticPropertiesScope(storageManager: StorageManager, private val l
     }
 
     private class MyPropertyDescriptor(
-        containingDeclaration: DeclarationDescriptor,
-        original: PropertyDescriptor?,
-        annotations: Annotations,
-        modality: Modality,
-        visibility: Visibility,
-        isVar: Boolean,
-        name: Name,
-        kind: CallableMemberDescriptor.Kind,
-        source: SourceElement
+            containingDeclaration: DeclarationDescriptor,
+            original: PropertyDescriptor?,
+            annotations: Annotations,
+            modality: Modality,
+            visibility: DescriptorVisibility,
+            isVar: Boolean,
+            name: Name,
+            kind: CallableMemberDescriptor.Kind,
+            source: SourceElement
     ) : SyntheticJavaPropertyDescriptor, PropertyDescriptorImpl(
         containingDeclaration, original, annotations, modality, visibility, isVar, name, kind, source,
         /* lateInit = */ false, /* isConst = */ false, /* isExpect = */ false, /* isActual = */ false, /* isExternal = */ false,
@@ -372,27 +372,28 @@ class JavaSyntheticPropertiesScope(storageManager: StorageManager, private val l
         }
 
         override fun createSubstitutedCopy(
-            newOwner: DeclarationDescriptor,
-            newModality: Modality,
-            newVisibility: Visibility,
-            original: PropertyDescriptor?,
-            kind: CallableMemberDescriptor.Kind,
-            newName: Name
+                newOwner: DeclarationDescriptor,
+                newModality: Modality,
+                newVisibility: DescriptorVisibility,
+                original: PropertyDescriptor?,
+                kind: CallableMemberDescriptor.Kind,
+                newName: Name,
+                source: SourceElement
         ): PropertyDescriptorImpl {
-            return MyPropertyDescriptor(newOwner, this, annotations, newModality, newVisibility, isVar, newName, kind, source).apply {
+            return MyPropertyDescriptor(newOwner, this, annotations, newModality, newVisibility, isVar, newName, kind, this.source).apply {
                 getMethod = this@MyPropertyDescriptor.getMethod
                 setMethod = this@MyPropertyDescriptor.setMethod
             }
         }
 
-        override fun substitute(originalSubstitutor: TypeSubstitutor): PropertyDescriptor? {
-            val descriptor = super.substitute(originalSubstitutor) as MyPropertyDescriptor? ?: return null
+        override fun substitute(substitutor: TypeSubstitutor): PropertyDescriptor? {
+            val descriptor = super.substitute(substitutor) as MyPropertyDescriptor? ?: return null
             if (descriptor == this) return descriptor
 
             val classTypeParameters = (getMethod.containingDeclaration as ClassDescriptor).typeConstructor.parameters
             val substitutionMap = HashMap<TypeConstructor, TypeProjection>()
             for ((typeParameter, classTypeParameter) in typeParameters.zip(classTypeParameters)) {
-                val typeProjection = originalSubstitutor.substitution[typeParameter.defaultType] ?: continue
+                val typeProjection = substitutor.substitution[typeParameter.defaultType] ?: continue
                 substitutionMap[classTypeParameter.typeConstructor] = typeProjection
 
             }

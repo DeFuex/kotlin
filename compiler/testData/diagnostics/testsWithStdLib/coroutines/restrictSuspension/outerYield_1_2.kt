@@ -1,6 +1,8 @@
 // !LANGUAGE: -ReleaseCoroutines -ExperimentalBuilderInference
 // !DIAGNOSTICS: -EXPERIMENTAL_FEATURE_WARNING
+// !WITH_NEW_INFERENCE
 // SKIP_TXT
+
 @kotlin.coroutines.experimental.RestrictsSuspension
 class RestrictedController<T> {
     suspend fun yield(<!UNUSED_PARAMETER!>x<!>: T) {}
@@ -76,11 +78,11 @@ fun test() {
             this@a.<!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield2<!>(1)
 
             with(this) {
-                <!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield<!>("")
-                this@with.<!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield<!>("")
+                <!OI;ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield<!>("")
+                this@with.<!NI;DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE, NI;DEBUG_INFO_UNRESOLVED_WITH_TARGET, NI;UNRESOLVED_REFERENCE, OI;ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield<!>("")
 
-                <!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield2<!>("")
-                this@with.<!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield2<!>("")
+                <!OI;ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield2<!>("")
+                this@with.<!NI;UNRESOLVED_REFERENCE_WRONG_RECEIVER, OI;ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>yield2<!>("")
             }
         }
     }

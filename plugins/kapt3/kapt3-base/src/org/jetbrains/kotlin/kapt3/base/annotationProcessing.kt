@@ -1,18 +1,21 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.kapt3.base
 
-import com.sun.tools.javac.comp.CompileStates.*
+import com.sun.source.util.Trees
+import com.sun.tools.javac.comp.CompileStates.CompileState
 import com.sun.tools.javac.main.JavaCompiler
 import com.sun.tools.javac.processing.AnnotationProcessingError
 import com.sun.tools.javac.processing.JavacFiler
 import com.sun.tools.javac.processing.JavacProcessingEnvironment
 import com.sun.tools.javac.tree.JCTree
 import org.jetbrains.kotlin.base.kapt3.KaptFlag
+import org.jetbrains.kotlin.kapt3.base.incremental.*
 import org.jetbrains.kotlin.kapt3.base.util.KaptBaseError
+import org.jetbrains.kotlin.kapt3.base.util.KaptLogger
 import org.jetbrains.kotlin.kapt3.base.util.isJava9OrLater
 import org.jetbrains.kotlin.kapt3.base.util.measureTimeMillisWithResult
 import java.io.File
@@ -27,10 +30,11 @@ import com.sun.tools.javac.util.List as JavacList
 
 fun KaptContext.doAnnotationProcessing(
     javaSourceFiles: List<File>,
-    processors: List<Processor>,
+    processors: List<IncrementalProcessor>,
     additionalSources: JavacList<JCTree.JCCompilationUnit> = JavacList.nil()
 ) {
     val processingEnvironment = JavacProcessingEnvironment.instance(context)
+
     val wrappedProcessors = processors.map { ProcessorWrapper(it) }
 
     val compilerAfterAP: JavaCompiler
@@ -42,7 +46,18 @@ fun KaptContext.doAnnotationProcessing(
             compiler.initProcessAnnotations(wrappedProcessors)
         }
 
+        if (logger.isVerbose) {
+            logger.info("Processing java sources with annotation processors: ${javaSourceFiles.joinToString()}")
+        }
         val parsedJavaFiles = parseJavaFiles(javaSourceFiles)
+
+        val sourcesStructureListener = cacheManager?.let {
+            if (processors.any { it.isUnableToRunIncrementally() }) return@let null
+
+            val recordTypesListener = MentionedTypesTaskListener(cacheManager.javaCache, processingEnvironment.elementUtils, Trees.instance(processingEnvironment))
+            compiler.getTaskListeners().add(recordTypesListener)
+            recordTypesListener
+        }
 
         compilerAfterAP = try {
             javaLog.interceptorData.files = parsedJavaFiles.map { it.sourceFile to it }.toMap()
@@ -50,16 +65,32 @@ fun KaptContext.doAnnotationProcessing(
                 CompileState.PARSE, compiler.enterTrees(parsedJavaFiles + additionalSources)
             )
 
+            val generatedSourcesListener = sourcesStructureListener?.let {
+                compiler.getTaskListeners().remove(it)
+                GeneratedTypesTaskListener(cacheManager!!.javaCache)
+            }?.also { compiler.getTaskListeners().add(it) }
+
             if (isJava9OrLater()) {
                 val processAnnotationsMethod = compiler.javaClass.getMethod("processAnnotations", JavacList::class.java)
                 processAnnotationsMethod.invoke(compiler, analyzedFiles)
                 compiler
             } else {
-                compiler.processAnnotations(analyzedFiles)
+                compiler.processAnnotations(analyzedFiles).also {
+                    generatedSourcesListener?.let { compiler.getTaskListeners().remove(it) }
+                }
             }
         } catch (e: AnnotationProcessingError) {
             throw KaptBaseError(KaptBaseError.Kind.EXCEPTION, e.cause ?: e)
         }
+
+        cacheManager?.updateCache(processors, sourcesStructureListener?.failureReason != null)
+
+        sourcesStructureListener?.let {
+            if (logger.isVerbose) {
+                logger.info("Analyzing sources structure took ${it.time}[ms].")
+            }
+        }
+        reportIfRunningNonIncrementally(sourcesStructureListener, cacheManager, logger, processors)
 
         val log = compilerAfterAP.log
 
@@ -97,7 +128,31 @@ private fun showProcessorTimings(wrappedProcessors: List<ProcessorWrapper>, logg
     }
 }
 
-private class ProcessorWrapper(private val delegate: Processor) : Processor by delegate {
+private fun reportIfRunningNonIncrementally(
+    listener: MentionedTypesTaskListener?,
+    cacheManager: JavaClassCacheManager?,
+    logger: KaptLogger,
+    processors: List<IncrementalProcessor>
+) {
+    listener ?: return
+    cacheManager ?: return
+
+    listener.failureReason?.let { failure ->
+        logger.warn("\n$failure")
+        return
+    }
+
+    val missingIncrementalSupport = processors.filter { it.isMissingIncrementalSupport() }
+    if (missingIncrementalSupport.isNotEmpty()) {
+        val nonIncremental = missingIncrementalSupport.map { "${it.processorName} (${it.incrementalSupportType})" }
+        logger.warn(
+            "Incremental annotation processing requested, but support is disabled because the following " +
+                    "processors are not incremental: ${nonIncremental.joinToString()}."
+        )
+    }
+}
+
+private class ProcessorWrapper(private val delegate: IncrementalProcessor) : Processor by delegate {
     private var initTime: Long = 0
     private val roundTime = mutableListOf<Long>()
 
@@ -110,7 +165,7 @@ private class ProcessorWrapper(private val delegate: Processor) : Processor by d
         return result
     }
 
-    override fun init(processingEnv: ProcessingEnvironment?) {
+    override fun init(processingEnv: ProcessingEnvironment) {
         initTime += measureTimeMillis {
             delegate.init(processingEnv)
         }
@@ -135,7 +190,7 @@ private class ProcessorWrapper(private val delegate: Processor) : Processor by d
     }
 
     fun renderSpentTime(): String {
-        val processorName = delegate.javaClass.simpleName
+        val processorName = delegate.processorName
         val totalTime = initTime + roundTime.sum()
 
         return "$processorName: " +

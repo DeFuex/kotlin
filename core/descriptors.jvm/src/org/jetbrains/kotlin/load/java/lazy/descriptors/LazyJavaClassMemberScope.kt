@@ -31,7 +31,7 @@ import org.jetbrains.kotlin.load.java.*
 import org.jetbrains.kotlin.load.java.BuiltinMethodsWithDifferentJvmName.isRemoveAtByIndex
 import org.jetbrains.kotlin.load.java.BuiltinMethodsWithDifferentJvmName.sameAsRenamedInJvmBuiltin
 import org.jetbrains.kotlin.load.java.BuiltinMethodsWithSpecialGenericSignature.sameAsBuiltinMethodWithErasedValueParameters
-import org.jetbrains.kotlin.load.java.BuiltinSpecialProperties.getBuiltinSpecialPropertyGetterName
+import org.jetbrains.kotlin.load.java.ClassicBuiltinSpecialProperties.getBuiltinSpecialPropertyGetterName
 import org.jetbrains.kotlin.load.java.components.DescriptorResolverUtils.resolveOverridesForNonStaticMembers
 import org.jetbrains.kotlin.load.java.components.TypeUsage
 import org.jetbrains.kotlin.load.java.descriptors.*
@@ -44,6 +44,7 @@ import org.jetbrains.kotlin.load.java.structure.JavaClass
 import org.jetbrains.kotlin.load.java.structure.JavaConstructor
 import org.jetbrains.kotlin.load.java.structure.JavaMethod
 import org.jetbrains.kotlin.load.kotlin.computeJvmDescriptor
+import org.jetbrains.kotlin.name.FqNameUnsafe
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.resolve.DescriptorFactory
 import org.jetbrains.kotlin.resolve.DescriptorUtils
@@ -56,6 +57,7 @@ import org.jetbrains.kotlin.storage.NotNullLazyValue
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeUtils
 import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
+import org.jetbrains.kotlin.types.refinement.TypeRefinement
 import org.jetbrains.kotlin.utils.SmartSet
 import org.jetbrains.kotlin.utils.addIfNotNull
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
@@ -65,13 +67,15 @@ import java.util.*
 class LazyJavaClassMemberScope(
     c: LazyJavaResolverContext,
     override val ownerDescriptor: ClassDescriptor,
-    private val jClass: JavaClass
-) : LazyJavaScope(c) {
+    private val jClass: JavaClass,
+    private val skipRefinement: Boolean,
+    mainScope: LazyJavaClassMemberScope? = null
+) : LazyJavaScope(c, mainScope) {
 
-    override fun computeMemberIndex() = ClassDeclaredMemberIndex(jClass, { !it.isStatic })
+    override fun computeMemberIndex() = ClassDeclaredMemberIndex(jClass) { !it.isStatic }
 
     override fun computeFunctionNames(kindFilter: DescriptorKindFilter, nameFilter: ((Name) -> Boolean)?) =
-        ownerDescriptor.typeConstructor.supertypes.flatMapTo(hashSetOf()) {
+        ownerDescriptor.typeConstructor.supertypes.flatMapTo(linkedSetOf()) {
             it.memberScope.getFunctionNames()
         }.apply {
             addAll(declaredMemberIndex().getMethodNames())
@@ -170,7 +174,7 @@ class LazyJavaClassMemberScope(
     private fun SimpleFunctionDescriptor.createSuspendView(): SimpleFunctionDescriptor? {
         val continuationParameter = valueParameters.lastOrNull()?.takeIf {
             isContinuation(
-                it.type.constructor.declarationDescriptor?.fqNameUnsafe?.takeIf { it.isSafe }?.toSafe(),
+                it.type.constructor.declarationDescriptor?.fqNameUnsafe?.takeIf(FqNameUnsafe::isSafe)?.toSafe(),
                 c.components.settings.isReleaseCoroutines
             )
         } ?: return null
@@ -279,7 +283,8 @@ class LazyJavaClassMemberScope(
 
         // Merge functions with same signatures
         val mergedFunctionFromSuperTypes = resolveOverridesForNonStaticMembers(
-            name, functionsFromSupertypes, emptyList(), ownerDescriptor, ErrorReporter.DO_NOTHING
+            name, functionsFromSupertypes, emptyList(), ownerDescriptor, ErrorReporter.DO_NOTHING,
+            c.components.kotlinTypeChecker.overridingUtil
         )
 
         // add declarations
@@ -308,7 +313,8 @@ class LazyJavaClassMemberScope(
     ) {
 
         val additionalOverrides = resolveOverridesForNonStaticMembers(
-            name, functionsFromSupertypes, result, ownerDescriptor, c.components.errorReporter
+            name, functionsFromSupertypes, result, ownerDescriptor, c.components.errorReporter,
+            c.components.kotlinTypeChecker.overridingUtil
         )
 
         if (!isSpecialBuiltinName) {
@@ -318,7 +324,7 @@ class LazyJavaClassMemberScope(
             result.addAll(
                 additionalOverrides.map { resolvedOverride ->
                     val overriddenBuiltin = resolvedOverride.getOverriddenSpecialBuiltin()
-                            ?: return@map resolvedOverride
+                        ?: return@map resolvedOverride
 
                     resolvedOverride.createHiddenCopyIfBuiltinAlreadyAccidentallyOverridden(overriddenBuiltin, allDescriptors)
                 })
@@ -353,7 +359,7 @@ class LazyJavaClassMemberScope(
     ): SimpleFunctionDescriptor? {
         val overriddenBuiltin =
             BuiltinMethodsWithSpecialGenericSignature.getOverriddenBuiltinFunctionWithErasedValueParametersInJava(descriptor)
-                    ?: return null
+                ?: return null
 
         return createOverrideForBuiltinFunctionWithErasedParameterIfNeeded(overriddenBuiltin, functions)
             ?.takeIf(this::isVisibleAsFunctionInCurrentClass)
@@ -427,9 +433,10 @@ class LazyJavaClassMemberScope(
     }
 
     private fun getFunctionsFromSupertypes(name: Name): Set<SimpleFunctionDescriptor> {
-        return ownerDescriptor.typeConstructor.supertypes.flatMapTo(LinkedHashSet()) {
-            it.memberScope.getContributedFunctions(name, NoLookupLocation.WHEN_GET_SUPER_MEMBERS)
-        }
+        return computeSupertypes()
+            .flatMapTo(LinkedHashSet()) {
+                it.memberScope.getContributedFunctions(name, NoLookupLocation.WHEN_GET_SUPER_MEMBERS)
+            }
     }
 
     override fun computeNonDeclaredProperties(name: Name, result: MutableCollection<PropertyDescriptor>) {
@@ -440,17 +447,24 @@ class LazyJavaClassMemberScope(
         val propertiesFromSupertypes = getPropertiesFromSupertypes(name)
         if (propertiesFromSupertypes.isEmpty()) return
 
+        val handledProperties = SmartSet.create<PropertyDescriptor>()
+
         val propertiesOverridesFromSuperTypes = SmartSet.create<PropertyDescriptor>()
 
-        addPropertyOverrideByMethod(propertiesFromSupertypes, result) { searchMethodsByNameWithoutBuiltinMagic(it) }
+        addPropertyOverrideByMethod(propertiesFromSupertypes, result, handledProperties) { searchMethodsByNameWithoutBuiltinMagic(it) }
 
-        addPropertyOverrideByMethod(propertiesFromSupertypes, propertiesOverridesFromSuperTypes) {
+        addPropertyOverrideByMethod(propertiesFromSupertypes - handledProperties, propertiesOverridesFromSuperTypes, null) {
             searchMethodsInSupertypesWithoutBuiltinMagic(it)
         }
 
         result.addAll(
             resolveOverridesForNonStaticMembers(
-                name, propertiesFromSupertypes + propertiesOverridesFromSuperTypes, result, ownerDescriptor, c.components.errorReporter
+                name,
+                propertiesFromSupertypes + propertiesOverridesFromSuperTypes,
+                result,
+                ownerDescriptor,
+                c.components.errorReporter,
+                c.components.kotlinTypeChecker.overridingUtil
             )
         )
     }
@@ -458,12 +472,14 @@ class LazyJavaClassMemberScope(
     private fun addPropertyOverrideByMethod(
         propertiesFromSupertypes: Set<PropertyDescriptor>,
         result: MutableCollection<PropertyDescriptor>,
+        handledProperties: MutableSet<PropertyDescriptor>?,
         functions: (Name) -> Collection<SimpleFunctionDescriptor>
     ) {
         for (property in propertiesFromSupertypes) {
             val newProperty = createPropertyDescriptorByMethods(property, functions)
             if (newProperty != null) {
                 result.add(newProperty)
+                handledProperties?.add(property)
                 break
             }
         }
@@ -480,7 +496,7 @@ class LazyJavaClassMemberScope(
         val annotations = c.resolveAnnotations(method)
 
         val propertyDescriptor = JavaPropertyDescriptor.create(
-            ownerDescriptor, annotations, modality, method.visibility,
+            ownerDescriptor, annotations, modality, method.visibility.toDescriptorVisibility(),
             /* isVar = */ false, method.name, c.components.sourceElementFactory.source(method),
             /* isStaticFinal = */ false
         )
@@ -513,11 +529,7 @@ class LazyJavaClassMemberScope(
                     "for getter is ${getterMethod.modality}, but for setter is ${setterMethod?.modality}"
         }
 
-        val propertyDescriptor = JavaPropertyDescriptor.create(
-            ownerDescriptor, Annotations.EMPTY, getterMethod.modality, getterMethod.visibility,
-            /* isVar = */ setterMethod != null, overriddenProperty.name, getterMethod.source,
-            /* isStaticFinal = */ false
-        )
+        val propertyDescriptor = JavaForKotlinOverridePropertyDescriptor(ownerDescriptor, getterMethod, setterMethod, overriddenProperty)
 
         propertyDescriptor.setType(getterMethod.returnType!!, listOf(), getDispatchReceiverParameter(), null)
 
@@ -543,19 +555,26 @@ class LazyJavaClassMemberScope(
     }
 
     private fun getPropertiesFromSupertypes(name: Name): Set<PropertyDescriptor> {
-        return ownerDescriptor.typeConstructor.supertypes.flatMap {
+        return computeSupertypes().flatMap {
             it.memberScope.getContributedVariables(name, NoLookupLocation.WHEN_GET_SUPER_MEMBERS).map { p -> p }
         }.toSet()
+    }
+
+    private fun computeSupertypes(): Collection<KotlinType> {
+        if (skipRefinement) return ownerDescriptor.typeConstructor.supertypes
+
+        @OptIn(TypeRefinement::class)
+        return c.components.kotlinTypeChecker.kotlinTypeRefiner.refineSupertypes(ownerDescriptor)
     }
 
     override fun resolveMethodSignature(
         method: JavaMethod, methodTypeParameters: List<TypeParameterDescriptor>, returnType: KotlinType,
         valueParameters: List<ValueParameterDescriptor>
-    ): LazyJavaScope.MethodSignatureData {
+    ): MethodSignatureData {
         val propagated = c.components.signaturePropagator.resolvePropagatedSignature(
             method, ownerDescriptor, returnType, null, valueParameters, methodTypeParameters
         )
-        return LazyJavaScope.MethodSignatureData(
+        return MethodSignatureData(
             propagated.returnType, propagated.receiverType, propagated.valueParameters, propagated.typeParameters,
             propagated.hasStableParameterNames(), propagated.errors
         )
@@ -587,7 +606,7 @@ class LazyJavaClassMemberScope(
             classDescriptor.declaredTypeParameters +
                     constructor.typeParameters.map { p -> c.typeParameterResolver.resolveTypeParameter(p)!! }
 
-        constructorDescriptor.initialize(valueParameters.descriptors, constructor.visibility, constructorTypeParameters)
+        constructorDescriptor.initialize(valueParameters.descriptors, constructor.visibility.toDescriptorVisibility(), constructorTypeParameters)
         constructorDescriptor.setHasStableParameterNames(false)
         constructorDescriptor.setHasSynthesizedParameterNames(valueParameters.hasSynthesizedNames)
 
@@ -600,7 +619,7 @@ class LazyJavaClassMemberScope(
 
     private fun createDefaultConstructor(): ClassConstructorDescriptor? {
         val isAnnotation: Boolean = jClass.isAnnotationType
-        if (jClass.isInterface && !isAnnotation)
+        if ((jClass.isInterface || !jClass.hasDefaultConstructor()) && !isAnnotation)
             return null
 
         val classDescriptor = ownerDescriptor
@@ -618,10 +637,10 @@ class LazyJavaClassMemberScope(
         return constructorDescriptor
     }
 
-    private fun getConstructorVisibility(classDescriptor: ClassDescriptor): Visibility {
+    private fun getConstructorVisibility(classDescriptor: ClassDescriptor): DescriptorVisibility {
         val visibility = classDescriptor.visibility
-        if (visibility == JavaVisibilities.PROTECTED_STATIC_VISIBILITY) {
-            return JavaVisibilities.PROTECTED_AND_PACKAGE
+        if (visibility == JavaDescriptorVisibilities.PROTECTED_STATIC_VISIBILITY) {
+            return JavaDescriptorVisibilities.PROTECTED_AND_PACKAGE
         }
         return visibility
     }
@@ -639,13 +658,13 @@ class LazyJavaClassMemberScope(
         if (methodNamedValue != null) {
             val parameterNamedValueJavaType = methodNamedValue.returnType
             val (parameterType, varargType) =
-                    if (parameterNamedValueJavaType is JavaArrayType)
-                        Pair(
-                            c.typeResolver.transformArrayType(parameterNamedValueJavaType, attr, isVararg = true),
-                            c.typeResolver.transformJavaType(parameterNamedValueJavaType.componentType, attr)
-                        )
-                    else
-                        Pair(c.typeResolver.transformJavaType(parameterNamedValueJavaType, attr), null)
+                if (parameterNamedValueJavaType is JavaArrayType)
+                    Pair(
+                        c.typeResolver.transformArrayType(parameterNamedValueJavaType, attr, isVararg = true),
+                        c.typeResolver.transformJavaType(parameterNamedValueJavaType.componentType, attr)
+                    )
+                else
+                    Pair(c.typeResolver.transformJavaType(parameterNamedValueJavaType, attr), null)
 
             result.addAnnotationValueParameter(constructor, 0, methodNamedValue, parameterType, varargType)
         }
@@ -675,7 +694,7 @@ class LazyJavaClassMemberScope(
                 method.name,
                 // Parameters of annotation constructors in Java are never nullable
                 TypeUtils.makeNotNullable(returnType),
-                method.annotationParameterDefaultValue != null,
+                method.hasAnnotationParameterDefaultValue,
                 /* isCrossinline = */ false,
                 /* isNoinline = */ false,
                 // Nulls are not allowed in annotation arguments in Java
@@ -723,7 +742,8 @@ class LazyJavaClassMemberScope(
 
     override fun getContributedClassifier(name: Name, location: LookupLocation): ClassifierDescriptor? {
         recordLookup(name, location)
-        return nestedClasses(name)
+
+        return (mainScope as LazyJavaClassMemberScope?)?.nestedClasses?.invoke(name) ?: nestedClasses(name)
     }
 
     override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<SimpleFunctionDescriptor> {

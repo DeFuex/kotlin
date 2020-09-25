@@ -1,6 +1,6 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.uast.test.env.kotlin
@@ -13,13 +13,24 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiManager
 import com.intellij.rt.execution.junit.FileComparisonFailure
 import junit.framework.TestCase
+import org.jetbrains.kotlin.test.IdeaSystemPropertiesForParallelRunConfigurator
+import org.jetbrains.kotlin.test.WithMutedInDatabaseRunTest
+import org.jetbrains.kotlin.test.runTest
 import org.jetbrains.uast.UastContext
 import org.jetbrains.uast.UastLanguagePlugin
 import org.jetbrains.uast.evaluation.UEvaluatorExtension
 import org.jetbrains.uast.java.JavaUastLanguagePlugin
 import java.io.File
 
+@WithMutedInDatabaseRunTest
 abstract class AbstractTestWithCoreEnvironment : TestCase() {
+
+    companion object {
+        init {
+            IdeaSystemPropertiesForParallelRunConfigurator.setProperties()
+        }
+    }
+
     private var myEnvironment: AbstractCoreEnvironment? = null
 
     protected val environment: AbstractCoreEnvironment
@@ -38,6 +49,10 @@ abstract class AbstractTestWithCoreEnvironment : TestCase() {
 
     override fun tearDown() {
         disposeEnvironment()
+    }
+
+    override fun runTest() {
+        runTest { super.runTest() }
     }
 
     protected abstract fun createEnvironment(source: File): AbstractCoreEnvironment

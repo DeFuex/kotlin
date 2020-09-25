@@ -1,13 +1,14 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.builtins.functions
 
 import org.jetbrains.kotlin.builtins.FunctionInterfacePackageFragment
-import org.jetbrains.kotlin.builtins.KOTLIN_REFLECT_FQ_NAME
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.builtins.StandardNames.BUILT_INS_PACKAGE_FQ_NAME
+import org.jetbrains.kotlin.builtins.StandardNames.COROUTINES_PACKAGE_FQ_NAME_RELEASE
+import org.jetbrains.kotlin.builtins.StandardNames.KOTLIN_REFLECT_FQ_NAME
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.deserialization.ClassDescriptorFactory
 import org.jetbrains.kotlin.descriptors.impl.PackageFragmentDescriptorImpl
@@ -15,7 +16,6 @@ import org.jetbrains.kotlin.incremental.components.LookupLocation
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.resolve.DescriptorUtils.COROUTINES_PACKAGE_FQ_NAME_RELEASE
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.MemberScopeImpl
 import org.jetbrains.kotlin.storage.StorageManager
@@ -50,9 +50,13 @@ class FunctionInterfaceMemberScope(
         TODO()
     }
 
+    private val classifiers = mutableMapOf<Name, ClassifierDescriptor>()
+
     override fun getContributedClassifier(name: Name, location: LookupLocation): ClassifierDescriptor? = when {
         classDescriptorFactory.shouldCreateClass(packageName, name) ->
-            classDescriptorFactory.createClass(ClassId.topLevel(packageName.child(name)))
+            classifiers.getOrPut(name) {
+                classDescriptorFactory.createClass(ClassId.topLevel(packageName.child(name)))!!
+            }
         else -> null
     }
 }
@@ -74,7 +78,7 @@ fun functionInterfacePackageFragmentProvider(
     val classFactory = BuiltInFictitiousFunctionClassFactory(storageManager, module)
     val fragments = listOf(
         KOTLIN_REFLECT_FQ_NAME,
-        KotlinBuiltIns.BUILT_INS_PACKAGE_FQ_NAME,
+        BUILT_INS_PACKAGE_FQ_NAME,
         COROUTINES_PACKAGE_FQ_NAME_RELEASE
     ).map { fqName ->
         FunctionInterfacePackageFragmentImpl(classFactory, module, fqName)

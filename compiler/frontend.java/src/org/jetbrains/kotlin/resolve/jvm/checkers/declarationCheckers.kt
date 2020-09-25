@@ -34,22 +34,23 @@ import org.jetbrains.kotlin.resolve.calls.components.isActualParameterWithCorres
 import org.jetbrains.kotlin.resolve.checkers.DeclarationChecker
 import org.jetbrains.kotlin.resolve.checkers.DeclarationCheckerContext
 import org.jetbrains.kotlin.resolve.descriptorUtil.isAnnotationConstructor
+import org.jetbrains.kotlin.resolve.descriptorUtil.propertyIfAccessor
 import org.jetbrains.kotlin.resolve.inline.InlineUtil
-import org.jetbrains.kotlin.resolve.isInlineClass
 import org.jetbrains.kotlin.resolve.jvm.annotations.VOLATILE_ANNOTATION_FQ_NAME
 import org.jetbrains.kotlin.resolve.jvm.annotations.findJvmOverloadsAnnotation
 import org.jetbrains.kotlin.resolve.jvm.annotations.findSynchronizedAnnotation
 import org.jetbrains.kotlin.resolve.jvm.annotations.hasJvmFieldAnnotation
 import org.jetbrains.kotlin.resolve.jvm.diagnostics.ErrorsJvm
 import org.jetbrains.kotlin.resolve.jvm.isInlineClassThatRequiresMangling
-import org.jetbrains.kotlin.resolve.jvm.requiresFunctionNameMangling
+import org.jetbrains.kotlin.resolve.jvm.requiresFunctionNameManglingForParameterTypes
+import org.jetbrains.kotlin.resolve.jvm.requiresFunctionNameManglingForReturnType
 
 class LocalFunInlineChecker : DeclarationChecker {
     override fun check(declaration: KtDeclaration, descriptor: DeclarationDescriptor, context: DeclarationCheckerContext) {
         if (InlineUtil.isInline(descriptor) &&
             declaration is KtNamedFunction &&
             descriptor is FunctionDescriptor &&
-            descriptor.visibility == Visibilities.LOCAL) {
+            descriptor.visibility == DescriptorVisibilities.LOCAL) {
             context.trace.report(Errors.NOT_YET_SUPPORTED_IN_INLINE.on(declaration, "Local inline functions"))
         }
     }
@@ -116,7 +117,7 @@ class JvmStaticChecker(jvmTarget: JvmTarget, languageVersionSettings: LanguageVe
         diagnosticHolder: DiagnosticSink,
         declaration: KtDeclaration
     ) {
-        if (descriptor.visibility != Visibilities.PUBLIC) {
+        if (descriptor.visibility != DescriptorVisibilities.PUBLIC) {
             diagnosticHolder.report(ErrorsJvm.JVM_STATIC_ON_NON_PUBLIC_MEMBER.on(declaration))
         } else if (descriptor is PropertyDescriptor) {
             descriptor.setter?.let { checkVisibility(it, diagnosticHolder, declaration) }
@@ -148,7 +149,8 @@ class JvmNameAnnotationChecker : DeclarationChecker {
             if (DescriptorUtils.isOverride(descriptor) || descriptor.isOverridable) {
                 diagnosticHolder.report(ErrorsJvm.INAPPLICABLE_JVM_NAME.on(annotationEntry))
             } else if (descriptor.containingDeclaration.isInlineClassThatRequiresMangling() ||
-                requiresFunctionNameMangling(descriptor.valueParameters.map { it.type })
+                requiresFunctionNameManglingForParameterTypes(descriptor) ||
+                requiresFunctionNameManglingForReturnType(descriptor)
             ) {
                 diagnosticHolder.report(ErrorsJvm.INAPPLICABLE_JVM_NAME.on(annotationEntry))
             }
@@ -183,11 +185,20 @@ class VolatileAnnotationChecker : DeclarationChecker {
 class SynchronizedAnnotationChecker : DeclarationChecker {
     override fun check(declaration: KtDeclaration, descriptor: DeclarationDescriptor, context: DeclarationCheckerContext) {
         val synchronizedAnnotation = descriptor.findSynchronizedAnnotation()
-        if (synchronizedAnnotation != null && descriptor is FunctionDescriptor && descriptor.modality == Modality.ABSTRACT) {
+        if (synchronizedAnnotation != null && descriptor is FunctionDescriptor) {
             val annotationEntry = DescriptorToSourceUtils.getSourceFromAnnotation(synchronizedAnnotation) ?: return
-            context.trace.report(ErrorsJvm.SYNCHRONIZED_ON_ABSTRACT.on(annotationEntry))
+            if (isInInterface(descriptor)) {
+                context.trace.report(ErrorsJvm.SYNCHRONIZED_IN_INTERFACE.on(annotationEntry))
+            } else if (descriptor.modality == Modality.ABSTRACT) {
+                context.trace.report(ErrorsJvm.SYNCHRONIZED_ON_ABSTRACT.on(annotationEntry))
+            }
         }
     }
+
+    private fun isInInterface(descriptor: FunctionDescriptor): Boolean =
+        DescriptorUtils.isInterface(descriptor.containingDeclaration) ||
+                (descriptor.propertyIfAccessor.isInsideCompanionObjectOfInterface() &&
+                        (descriptor.hasJvmStaticAnnotation() || descriptor.propertyIfAccessor.hasJvmStaticAnnotation()))
 }
 
 class OverloadsAnnotationChecker: DeclarationChecker {
@@ -223,7 +234,7 @@ class OverloadsAnnotationChecker: DeclarationChecker {
                     ErrorsJvm.OVERLOADS_ANNOTATION_CLASS_CONSTRUCTOR_WARNING
 
             diagnosticHolder.report(diagnostic.on(annotationEntry))
-        } else if (!descriptor.visibility.isPublicAPI && descriptor.visibility != Visibilities.INTERNAL) {
+        } else if (!descriptor.visibility.isPublicAPI && descriptor.visibility != DescriptorVisibilities.INTERNAL) {
             diagnosticHolder.report(ErrorsJvm.OVERLOADS_PRIVATE.on(annotationEntry))
         } else if (descriptor.valueParameters.none { it.declaresDefaultValue() || it.isActualParameterWithCorrespondingExpectedDefault }) {
             diagnosticHolder.report(ErrorsJvm.OVERLOADS_WITHOUT_DEFAULT_ARGUMENTS.on(annotationEntry))
@@ -244,4 +255,12 @@ class TypeParameterBoundIsNotArrayChecker : DeclarationChecker {
             }
         }
     }
+}
+
+internal fun CallableMemberDescriptor.isInsideCompanionObjectOfInterface(): Boolean {
+    val containingClass = containingDeclaration as? ClassDescriptor ?: return false
+    if (!DescriptorUtils.isCompanionObject(containingClass)) return false
+
+    val outerClassKind = (containingClass.containingDeclaration as? ClassDescriptor)?.kind
+    return outerClassKind == ClassKind.INTERFACE || outerClassKind == ClassKind.ANNOTATION_CLASS
 }

@@ -1,4 +1,3 @@
-// IGNORE_BACKEND: JVM_IR
 // FILE: test.kt
 // COMMON_COROUTINES_TEST
 // WITH_RUNTIME
@@ -101,6 +100,6 @@ fun box() : String {
             checkContinuation(savedContinuation!!)
         }
     }
-    if (!continuationChanged) return "FAIL 5"
+    if (continuationChanged) return "FAIL 5"
     return "OK"
 }

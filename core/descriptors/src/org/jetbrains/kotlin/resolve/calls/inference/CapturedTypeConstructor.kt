@@ -24,10 +24,14 @@ import org.jetbrains.kotlin.storage.LockBasedStorageManager
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.Variance.IN_VARIANCE
 import org.jetbrains.kotlin.types.Variance.OUT_VARIANCE
+import org.jetbrains.kotlin.types.checker.KotlinTypeRefiner
 import org.jetbrains.kotlin.types.checker.NewCapturedTypeConstructor
+import org.jetbrains.kotlin.types.model.CapturedTypeConstructorMarker
+import org.jetbrains.kotlin.types.model.CapturedTypeMarker
+import org.jetbrains.kotlin.types.refinement.TypeRefinement
 import org.jetbrains.kotlin.types.typeUtil.builtIns
 
-interface CapturedTypeConstructor : TypeConstructor {
+interface CapturedTypeConstructor : CapturedTypeConstructorMarker, TypeConstructor {
     val projection: TypeProjection
 }
 
@@ -61,6 +65,10 @@ class CapturedTypeConstructorImpl(
     override fun toString() = "CapturedTypeConstructor($projection)"
 
     override fun getBuiltIns(): KotlinBuiltIns = projection.type.constructor.builtIns
+
+    @TypeRefinement
+    override fun refine(kotlinTypeRefiner: KotlinTypeRefiner) =
+        CapturedTypeConstructorImpl(projection.refine(kotlinTypeRefiner))
 }
 
 class CapturedType(
@@ -68,7 +76,7 @@ class CapturedType(
     override val constructor: CapturedTypeConstructor = CapturedTypeConstructorImpl(typeProjection),
     override val isMarkedNullable: Boolean = false,
     override val annotations: Annotations = Annotations.EMPTY
-) : SimpleType(), SubtypingRepresentatives {
+) : SimpleType(), SubtypingRepresentatives, CapturedTypeMarker {
     override val arguments: List<TypeProjection>
         get() = listOf()
 
@@ -97,6 +105,10 @@ class CapturedType(
 
     override fun replaceAnnotations(newAnnotations: Annotations): CapturedType =
         CapturedType(typeProjection, constructor, isMarkedNullable, newAnnotations)
+
+    @TypeRefinement
+    override fun refine(kotlinTypeRefiner: KotlinTypeRefiner) =
+        CapturedType(typeProjection.refine(kotlinTypeRefiner), constructor, isMarkedNullable, annotations)
 }
 
 fun createCapturedType(typeProjection: TypeProjection): KotlinType = CapturedType(typeProjection)

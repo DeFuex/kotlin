@@ -22,16 +22,16 @@ import kotlin.Unit;
 import kotlin.text.StringsKt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
+import org.jetbrains.kotlin.builtins.StandardNames;
 import org.jetbrains.kotlin.contracts.description.*;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.descriptors.impl.SubpackagesScope;
 import org.jetbrains.kotlin.jvm.compiler.ExpectedLoadErrorsUtil;
 import org.jetbrains.kotlin.name.FqName;
+import org.jetbrains.kotlin.platform.TargetPlatformKt;
 import org.jetbrains.kotlin.renderer.*;
 import org.jetbrains.kotlin.resolve.DescriptorUtils;
 import org.jetbrains.kotlin.resolve.MemberComparator;
-import org.jetbrains.kotlin.resolve.MultiTargetPlatform;
 import org.jetbrains.kotlin.resolve.scopes.ChainedMemberScope;
 import org.jetbrains.kotlin.resolve.scopes.MemberScope;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
@@ -75,7 +75,7 @@ public class RecursiveDescriptorComparator {
 
     public static final Predicate<DeclarationDescriptor> SKIP_BUILT_INS_PACKAGES = descriptor -> {
         if (descriptor instanceof PackageViewDescriptor) {
-            return !KotlinBuiltIns.BUILT_INS_PACKAGE_FQ_NAME.equals(((PackageViewDescriptor) descriptor).getFqName());
+            return !StandardNames.BUILT_INS_PACKAGE_FQ_NAME.equals(((PackageViewDescriptor) descriptor).getFqName());
         }
         return true;
     };
@@ -201,7 +201,7 @@ public class RecursiveDescriptorComparator {
     }
 
     private static void printEffectsIfAny(FunctionDescriptor functionDescriptor, Printer printer) {
-        LazyContractProvider contractProvider = functionDescriptor.getUserData(ContractProviderKey.INSTANCE);
+        AbstractContractProvider contractProvider = functionDescriptor.getUserData(ContractProviderKey.INSTANCE);
         if (contractProvider == null) return;
 
         ContractDescription contractDescription = contractProvider.getContractDescription();
@@ -243,7 +243,7 @@ public class RecursiveDescriptorComparator {
 
         // 'expected' declarations do not belong to the platform-specific module, even though they participate in the analysis
         if (descriptor instanceof MemberDescriptor && ((MemberDescriptor) descriptor).isExpect() &&
-            module.getCapability(MultiTargetPlatform.CAPABILITY) != MultiTargetPlatform.Common.INSTANCE) return false;
+            !TargetPlatformKt.isCommon(module.getPlatform())) return false;
 
         return module.equals(DescriptorUtils.getContainingModule(descriptor));
     }
@@ -412,6 +412,13 @@ public class RecursiveDescriptorComparator {
         public Configuration withRenderer(@NotNull DescriptorRenderer renderer) {
             return new Configuration(checkPrimaryConstructors, checkPropertyAccessors, includeMethodsOfKotlinAny,
                                      renderDeclarationsFromOtherModules, checkFunctionContracts, recursiveFilter, validationStrategy, renderer);
+        }
+
+        public Configuration withRendererOptions(@NotNull Consumer<DescriptorRendererOptions> configure) {
+            return new Configuration(
+                    checkPrimaryConstructors, checkPropertyAccessors, includeMethodsOfKotlinAny,
+                    renderDeclarationsFromOtherModules, checkFunctionContracts, recursiveFilter, validationStrategy,
+                    newRenderer(renderer, configure));
         }
 
         @NotNull

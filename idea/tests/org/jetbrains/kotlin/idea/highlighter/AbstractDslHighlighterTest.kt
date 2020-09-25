@@ -1,6 +1,6 @@
 /*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
- * that can be found in the license/LICENSE.txt file.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.highlighter
@@ -8,20 +8,20 @@ package org.jetbrains.kotlin.idea.highlighter
 import com.intellij.codeInsight.daemon.impl.AnnotationHolderImpl
 import com.intellij.lang.annotation.AnnotationSession
 import com.intellij.psi.PsiComment
-import com.intellij.testFramework.fixtures.LightCodeInsightFixtureTestCase
 import org.jetbrains.kotlin.idea.caches.resolve.analyzeWithAllCompilerChecks
 import org.jetbrains.kotlin.idea.highlighter.dsl.DslHighlighterExtension
+import org.jetbrains.kotlin.idea.test.KotlinLightCodeInsightFixtureTestCase
 import org.jetbrains.kotlin.idea.test.KotlinWithJdkAndRuntimeLightProjectDescriptor
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtTreeVisitor
 import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 
-abstract class AbstractDslHighlighterTest : LightCodeInsightFixtureTestCase() {
+abstract class AbstractDslHighlighterTest : KotlinLightCodeInsightFixtureTestCase() {
     override fun getProjectDescriptor() = KotlinWithJdkAndRuntimeLightProjectDescriptor.INSTANCE
 
-    protected fun doTest(filePath: String) {
-        val psiFile = myFixture.configureByFile(filePath) as KtFile
+    protected fun doTest(unused: String) {
+        val psiFile = myFixture.configureByFile(fileName()) as KtFile
         val extension = DslHighlighterExtension()
         val bindingContext = psiFile.analyzeWithAllCompilerChecks().bindingContext
 
@@ -64,5 +64,4 @@ abstract class AbstractDslHighlighterTest : LightCodeInsightFixtureTestCase() {
         psiFile.accept(visitor)
     }
 
-    override fun getTestDataPath() = ""
 }

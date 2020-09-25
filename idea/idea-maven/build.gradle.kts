@@ -1,4 +1,3 @@
-
 plugins {
     kotlin("jvm")
     id("jps-compatible")
@@ -19,7 +18,20 @@ dependencies {
     compile(project(":idea:idea-jps-common"))
 
     compileOnly(intellijDep())
+    Platform[192].orHigher {
+        compileOnly(intellijPluginDep("java"))
+        testCompileOnly(intellijPluginDep("java"))
+        testRuntimeOnly(intellijPluginDep("java"))
+        testRuntimeOnly(intellijPluginDep("java-ide-customization"))
+    }
+    
     excludeInAndroidStudio(rootProject) { compileOnly(intellijPluginDep("maven")) }
+
+    excludeInAndroidStudio(rootProject) {
+        Platform[202].orHigher {
+            compileOnly(intellijPluginDep("maven-model"))
+        }
+    }
 
     testCompile(projectTests(":idea"))
     testCompile(projectTests(":compiler:tests-common"))
@@ -29,12 +41,21 @@ dependencies {
     if (Ide.IJ()) {
         testCompileOnly(intellijPluginDep("maven"))
         testRuntime(intellijPluginDep("maven"))
+
+        Platform[202].orHigher {
+            testCompileOnly(intellijPluginDep("maven-model"))
+            testRuntime(intellijPluginDep("maven-model"))
+        }
+
+        if (Ide.IJ201.orHigher()) {
+            testRuntime(intellijPluginDep("repository-search"))
+        }
     }
 
     testCompile(project(":idea:idea-native")) { isTransitive = false }
-    testRuntime(project(":kotlin-native:kotlin-native-library-reader")) { isTransitive = false }
-    testRuntime(project(":kotlin-native:kotlin-native-utils")) { isTransitive = false }
+    testRuntime(project(":native:frontend.native"))
 
+    testRuntimeOnly(toolsJar())
     testRuntime(project(":kotlin-reflect"))
     testRuntime(project(":idea:idea-jvm"))
     testRuntime(project(":idea:idea-android"))
@@ -43,6 +64,7 @@ dependencies {
     testRuntime(project(":sam-with-receiver-ide-plugin"))
     testRuntime(project(":allopen-ide-plugin"))
     testRuntime(project(":noarg-ide-plugin"))
+    testRuntime(project(":plugins:parcelize:parcelize-ide"))
     testRuntime(project(":kotlin-scripting-idea"))
     testRuntime(project(":kotlinx-serialization-ide-plugin"))
 
@@ -56,6 +78,14 @@ dependencies {
     testRuntime(intellijPluginDep("coverage"))
     testRuntime(intellijPluginDep("android"))
     testRuntime(intellijPluginDep("smali"))
+
+    if (Ide.AS36.orHigher()) {
+        testRuntime(intellijPluginDep("android-layoutlib"))
+    }
+
+    if (Ide.AS41.orHigher()) {
+        testRuntime(intellijPluginDep("platform-images"))
+    }
 }
 
 if (Ide.IJ()) {
@@ -72,15 +102,10 @@ if (Ide.IJ()) {
 
 testsJar()
 
-projectTest {
+projectTest(parallel = true) {
     workingDir = rootDir
 }
 
-
 if (Ide.IJ()) {
-    runtimeJar {
-        archiveName = "maven-ide.jar"
-    }
-
-    ideaPlugin()
+    runtimeJar()
 }

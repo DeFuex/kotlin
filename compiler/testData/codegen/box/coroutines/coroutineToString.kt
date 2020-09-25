@@ -1,9 +1,9 @@
-// IGNORE_BACKEND: JS_IR
-// IGNORE_BACKEND: JVM_IR
+// This test depends on line numbers.
 // TARGET_BACKEND: JVM
 // WITH_REFLECT
 // WITH_COROUTINES
 package test
+
 import helpers.*
 import kotlin.coroutines.*
 import kotlin.coroutines.intrinsics.*

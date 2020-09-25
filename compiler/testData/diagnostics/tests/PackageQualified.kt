@@ -20,12 +20,12 @@ abstract class Foo<T>() {
 package foobar.a
     import java.util.*
 
-    val b : List<Int>? = <!NI;TYPE_MISMATCH, TYPE_MISMATCH!>a<!>
+    val b : List<Int>? = <!TYPE_MISMATCH!>a<!>
     val b1 : <!UNRESOLVED_REFERENCE!>util<!>.<!DEBUG_INFO_MISSING_UNRESOLVED!>List<!><Int>? = a
 
 // FILE: b.kt
 package foobar
-val x1 = <!UNRESOLVED_REFERENCE!>a<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a<!>
+val x1 = <!UNRESOLVED_REFERENCE!>a<!>.<!NI;DEBUG_INFO_MISSING_UNRESOLVED, OI;DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a<!>
 val x2 = foobar.a.a
 
 val y1 = foobar.a.b
